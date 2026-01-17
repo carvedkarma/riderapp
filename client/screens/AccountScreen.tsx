@@ -2,7 +2,6 @@ import React from "react";
 import { StyleSheet, View, Image, Pressable, Platform, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
@@ -11,14 +10,11 @@ import { GlassCard } from "@/components/GlassCard";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { CompositeNavigationProp } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
-import type { MainTabParamList } from "@/navigation/MainTabNavigator";
 
-type AccountScreenNavigationProp = CompositeNavigationProp<
-  BottomTabNavigationProp<MainTabParamList, "AccountTab">,
-  NativeStackNavigationProp<RootStackParamList>
+type AccountScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "Account"
 >;
 
 interface Props {
@@ -88,7 +84,6 @@ function MenuItem({ icon, title, subtitle, onPress, showBadge, danger }: MenuIte
 export default function AccountScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
 
   return (
@@ -96,7 +91,7 @@ export default function AccountScreen({ navigation }: Props) {
       style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
       contentContainerStyle={{
         paddingTop: headerHeight + Spacing.xl,
-        paddingBottom: tabBarHeight + Spacing.xl,
+        paddingBottom: insets.bottom + Spacing.xl,
         paddingHorizontal: Spacing.lg,
       }}
       showsVerticalScrollIndicator={false}

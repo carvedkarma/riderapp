@@ -1,6 +1,6 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import MainTabNavigator from "@/navigation/MainTabNavigator";
+import DashboardScreen from "@/screens/DashboardScreen";
 import DestinationSearchScreen from "@/screens/DestinationSearchScreen";
 import RideConfirmationScreen from "@/screens/RideConfirmationScreen";
 import ActiveRideScreen from "@/screens/ActiveRideScreen";
@@ -9,7 +9,10 @@ import RideDetailsScreen from "@/screens/RideDetailsScreen";
 import SafetyCenterScreen from "@/screens/SafetyCenterScreen";
 import PaymentMethodsScreen from "@/screens/PaymentMethodsScreen";
 import SavedPlacesScreen from "@/screens/SavedPlacesScreen";
+import ActivityScreen from "@/screens/ActivityScreen";
+import AccountScreen from "@/screens/AccountScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { useTheme } from "@/hooks/useTheme";
 
 interface LocationPoint {
   address: string;
@@ -27,7 +30,7 @@ interface DriverInfo {
 }
 
 export type RootStackParamList = {
-  Main: undefined;
+  Dashboard: undefined;
   DestinationSearch: { savedLocationId?: string } | undefined;
   RideConfirmation: {
     pickup: LocationPoint;
@@ -50,18 +53,29 @@ export type RootStackParamList = {
   SafetyCenter: undefined;
   PaymentMethods: undefined;
   SavedPlaces: undefined;
+  Activity: undefined;
+  Account: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootStackNavigator() {
   const screenOptions = useScreenOptions();
+  const { theme } = useTheme();
 
   return (
-    <Stack.Navigator screenOptions={screenOptions}>
+    <Stack.Navigator 
+      screenOptions={{
+        ...screenOptions,
+        headerStyle: {
+          backgroundColor: theme.backgroundRoot,
+        },
+        headerTintColor: theme.text,
+      }}
+    >
       <Stack.Screen
-        name="Main"
-        component={MainTabNavigator}
+        name="Dashboard"
+        component={DashboardScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
@@ -69,7 +83,10 @@ export default function RootStackNavigator() {
         component={DestinationSearchScreen}
         options={{
           presentation: "modal",
-          headerTitle: "Where to?",
+          headerTitle: "Set destination",
+          headerStyle: {
+            backgroundColor: theme.backgroundRoot,
+          },
         }}
       />
       <Stack.Screen
@@ -122,6 +139,20 @@ export default function RootStackNavigator() {
         component={SavedPlacesScreen}
         options={{
           headerTitle: "Saved Places",
+        }}
+      />
+      <Stack.Screen
+        name="Activity"
+        component={ActivityScreen}
+        options={{
+          headerTitle: "Activity",
+        }}
+      />
+      <Stack.Screen
+        name="Account"
+        component={AccountScreen}
+        options={{
+          headerTitle: "Account",
         }}
       />
     </Stack.Navigator>

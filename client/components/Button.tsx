@@ -77,14 +77,14 @@ export function Button({
     }
     switch (variant) {
       case "primary":
-        return "#000000";
+        return isDark ? "#FFFFFF" : "#000000";
       case "secondary":
         return theme.accent;
       case "outline":
       case "ghost":
         return "transparent";
       default:
-        return "#000000";
+        return isDark ? "#FFFFFF" : "#000000";
     }
   };
 
@@ -94,14 +94,14 @@ export function Button({
     }
     switch (variant) {
       case "primary":
-        return "#FFFFFF";
+        return isDark ? "#000000" : "#FFFFFF";
       case "secondary":
         return isDark ? "#000000" : "#FFFFFF";
       case "outline":
       case "ghost":
         return theme.text;
       default:
-        return "#FFFFFF";
+        return isDark ? "#000000" : "#FFFFFF";
     }
   };
 

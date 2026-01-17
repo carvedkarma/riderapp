@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { StyleSheet, View, FlatList, RefreshControl, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -13,14 +12,11 @@ import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { CompositeNavigationProp } from "@react-navigation/native";
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
-import type { MainTabParamList } from "@/navigation/MainTabNavigator";
 
-type ActivityScreenNavigationProp = CompositeNavigationProp<
-  BottomTabNavigationProp<MainTabParamList, "ActivityTab">,
-  NativeStackNavigationProp<RootStackParamList>
+type ActivityScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "Activity"
 >;
 
 interface Props {
@@ -81,7 +77,6 @@ const MOCK_SCHEDULED = [
 export default function ActivityScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
 
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -162,7 +157,8 @@ export default function ActivityScreen({ navigation }: Props) {
           style={styles.segmentedControl}
           tintColor={theme.accent}
           fontStyle={{ color: theme.textSecondary }}
-          activeFontStyle={{ color: "#FFFFFF" }}
+          activeFontStyle={{ color: "#000000" }}
+          backgroundColor={theme.backgroundSecondary}
         />
       </View>
 
@@ -174,7 +170,7 @@ export default function ActivityScreen({ navigation }: Props) {
         contentContainerStyle={[
           styles.listContent,
           {
-            paddingBottom: tabBarHeight + Spacing.xl,
+            paddingBottom: insets.bottom + Spacing.xl,
           },
           data.length === 0 && styles.emptyList,
         ]}
