@@ -1,7 +1,7 @@
 # RideX - Premium iOS Ride-Sharing App
 
 ## Overview
-RideX is a premium ride-sharing mobile application built with Expo React Native for iOS, featuring an Uber-inspired dark-mode design with a single dashboard layout. The app provides riders with a seamless booking experience, real-time tracking, and transparent pricing.
+RideX is a premium ride-sharing mobile application built with Expo React Native for iOS, featuring an Uber-inspired dark-mode design. The app includes **both Rider and Driver functionality** in a single codebase, with a role selector to switch between modes. It provides riders with seamless booking and drivers with comprehensive trip management and earnings tracking.
 
 ## Architecture
 
@@ -11,6 +11,7 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 - **State Management**: React Query for server state
 - **Styling**: StyleSheet with custom dark theme system
 - **Components**: Custom glass-morphism cards, premium buttons, animated interactions
+- **Role System**: Role selector at launch to choose Rider or Driver mode
 
 ### Backend (Express.js)
 - **Database**: PostgreSQL with Drizzle ORM
@@ -21,9 +22,21 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 ├── client/
 │   ├── components/        # Reusable UI components
 │   ├── screens/           # Screen components
-│   │   ├── DashboardScreen.tsx  # Main screen with map and bottom sheet
-│   │   ├── ActivityScreen.tsx   # Ride history
-│   │   └── AccountScreen.tsx    # User profile
+│   │   ├── RoleSelectorScreen.tsx    # Choose Rider or Driver mode
+│   │   ├── DashboardScreen.tsx       # Rider main screen with map
+│   │   ├── DestinationSearchScreen.tsx
+│   │   ├── RideConfirmationScreen.tsx
+│   │   ├── ActiveRideScreen.tsx
+│   │   ├── RideCompleteScreen.tsx
+│   │   ├── ActivityScreen.tsx
+│   │   ├── AccountScreen.tsx
+│   │   └── driver/                   # Driver-specific screens
+│   │       ├── DriverOnboardingScreen.tsx  # 5-step onboarding
+│   │       ├── DriverHomeScreen.tsx        # Map with online/offline toggle
+│   │       ├── DriverActiveTripScreen.tsx  # Navigate/arrived/start/complete
+│   │       ├── DriverTripCompleteScreen.tsx
+│   │       ├── DriverEarningsScreen.tsx    # Today/Week/Month earnings
+│   │       └── DriverProfileScreen.tsx
 │   ├── navigation/        # Navigation configuration
 │   │   └── RootStackNavigator.tsx  # Main stack navigator
 │   ├── hooks/             # Custom hooks
@@ -39,33 +52,60 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
     └── images/            # App icons and illustrations
 ```
 
-## Key Features
-1. **Dashboard**: Full-screen dark map with bottom sheet, Activity and Account accessible via top icons
-2. **Destination Search**: Saved places (Home, Work) and recent locations
+## Rider App Features
+1. **Dashboard**: Full-screen dark map with bottom sheet, time-based greetings
+2. **Destination Search**: Saved places (Home, Work, Gym), recent locations, search autocomplete
 3. **Vehicle Selection**: Economy, Comfort, Premium, Luxury tiers with driver earnings visibility
 4. **Ride Preferences**: Quiet ride, music allowed, temperature preference toggles
 5. **Fare Lock Timer**: 120-second countdown with confidence indicator
 6. **Ride Tracking**: Real-time driver location with progress bar and trip sharing
 7. **Ride Complete**: 5-star rating, iOS-style tip slider ($0-$20), detailed fare breakdown
-8. **Ride History**: Past trips with monthly spend insights, time saved, suggested booking times
+8. **Ride History**: Past trips with monthly spend insights
 9. **Account Management**: Profile, payment methods, saved places
 10. **Safety Center**: SOS button, emergency contacts, trip sharing
 
-## Enhanced Components
-- **DashboardScreen**: Full-screen map with center pin marker and bottom sheet
-- **InsightPanel**: Shows demand rising/falling, suggested booking timing, driver density
-- **RidePreferences**: Quiet ride, music, temperature preferences with iOS toggles
-- **FareLockTimer**: Countdown with color-coded urgency and confidence indicator
-- **TipSlider**: iOS-style slider with preset buttons (web-compatible)
-- **RideInsights**: Monthly stats, total rides, time saved visualization
-- **TripShareButton**: Share ride status with contacts
-- **DriverEarningsBadge**: Transparent driver earnings visibility
+## Driver App Features
+1. **Role Selector**: Choose between Rider and Driver modes at launch
+2. **Driver Onboarding**: 5-step setup (welcome, location, profile, vehicle, ready)
+3. **Driver Home Screen**: 
+   - Full-screen map with online/offline toggle
+   - Today's earnings and trips summary
+   - Smart zone suggestions (demand hotspots, surge alerts)
+   - Searching for trips animation when online
+4. **Trip Request Inbox**:
+   - Incoming request card with pickup/dropoff details
+   - Estimated earnings display
+   - Rider rating and timer countdown
+   - Accept/Decline with haptic feedback
+5. **Active Trip Flow**:
+   - Navigate to pickup → Arrived → Start Trip → Complete Trip
+   - Progress bar with 4-state visualization
+   - Rider info with message/call buttons
+   - Real-time ETA and route preview
+6. **Trip Complete Screen**:
+   - Earnings breakdown (fare, platform fee 20%, net earnings)
+   - Trip stats (duration, distance)
+   - Rider feedback notification
+7. **Earnings Dashboard**:
+   - Today/Week/Month segmented tabs
+   - Total earnings, trips, online hours
+   - Earnings breakdown (fares, tips, platform fee)
+   - Recent trip history with individual fare details
+8. **Driver Profile**:
+   - Rating and total trips
+   - Achievement badges (Gold Driver, Safe Driver, Top Rated)
+   - Vehicle information
+   - Trip preferences and navigation settings
+   - Safety center access
+   - Switch to Rider mode option
 
 ## Design System
 - **Theme**: Dark mode forced (no light mode toggle)
 - **Primary Background**: Deep Black (#000000)
 - **Secondary Background**: Dark Gray (#1C1C1E)
 - **Accent Color**: Champagne Gold (#D4B87A)
+- **Success Color**: Green (#30D158)
+- **Error Color**: Red (#FF453A)
 - **Text Color**: White (#FFFFFF)
 - **Glass-morphism effects** with blur on iOS
 - **SF Pro typography** (iOS system font)
@@ -73,17 +113,35 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 - **Haptic feedback** throughout (Light, Medium, Selection, Success)
 
 ## Navigation Structure
-- Dashboard (initial) → DestinationSearch (modal)
+
+### Rider Flow
+- RoleSelector → Dashboard (initial)
+- Dashboard → DestinationSearch (modal)
 - Dashboard → Activity (stack)
 - Dashboard → Account (stack)
 - DestinationSearch → RideConfirmation → ActiveRide → RideComplete
 - Account → PaymentMethods, SavedPlaces, SafetyCenter
 
+### Driver Flow
+- RoleSelector → DriverOnboarding → DriverHome
+- DriverHome → DriverActiveTrip → DriverTripComplete
+- DriverHome → DriverEarnings
+- DriverHome → DriverProfile
+- DriverProfile → RoleSelector (switch to Rider mode)
+
+## Mock Data & Logic
+- **Trip requests**: Appear after 5 seconds when driver goes online
+- **Earnings calculation**: 20% platform fee deducted from trip fares
+- **Zone suggestions**: Mocked demand hotspots and surge indicators
+- **Driver stats**: Mock data for trips, hours, ratings
+- **Code structure**: Ready for real API integration later
+
 ## Recent Changes
-- January 17, 2026: Redesigned to Uber-style single dashboard layout with full-screen dark map and bottom sheet
-- January 17, 2026: Removed bottom tab navigation, Activity and Account now accessible from dashboard icons
-- January 17, 2026: Forced dark theme for premium appearance
-- January 17, 2026: Enhanced UI/UX with insight panels, fare lock timer, ride preferences, tip slider
+- January 17, 2026: Added complete Driver App with onboarding, trip management, and earnings tracking
+- January 17, 2026: Implemented Role Selector to switch between Rider and Driver modes
+- January 17, 2026: Fixed destination search with smaller Quick Access cards and 1-char autocomplete
+- January 17, 2026: Redesigned to Uber-style single dashboard layout
+- January 17, 2026: Enhanced UI/UX with insight panels, fare lock timer, ride preferences
 - January 17, 2026: Initial app creation with full rider functionality
 
 ## Development Commands
