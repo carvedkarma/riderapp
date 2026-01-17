@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { StyleSheet, View, TextInput, Platform, Pressable, ActivityIndicator } from "react-native";
+import { StyleSheet, View, TextInput, Platform, Pressable, ActivityIndicator, ScrollView, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -15,6 +15,9 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_WIDTH = (SCREEN_WIDTH - Spacing.lg * 2 - Spacing.sm * 2) / 3;
 
 type DestinationSearchScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -37,6 +40,7 @@ interface PlaceSuggestion {
   address: string;
   type: "popular" | "nearby" | "search";
   distance?: string;
+  icon: keyof typeof Feather.glyphMap;
   latitude: number;
   longitude: number;
 }
@@ -63,29 +67,29 @@ const SAVED_LOCATIONS = [
 ];
 
 const POPULAR_DESTINATIONS: PlaceSuggestion[] = [
-  { id: "pop-1", name: "Airport", address: "International Airport Terminal", type: "popular", distance: "25 min", latitude: 0, longitude: 0 },
-  { id: "pop-2", name: "City Center", address: "Downtown Main Square", type: "popular", distance: "15 min", latitude: 0, longitude: 0 },
-  { id: "pop-3", name: "Shopping Mall", address: "Grand Shopping Center", type: "popular", distance: "10 min", latitude: 0, longitude: 0 },
-  { id: "pop-4", name: "Train Station", address: "Central Railway Station", type: "popular", distance: "12 min", latitude: 0, longitude: 0 },
-  { id: "pop-5", name: "Hospital", address: "City Medical Center", type: "popular", distance: "8 min", latitude: 0, longitude: 0 },
+  { id: "pop-1", name: "Airport", address: "International Airport", type: "popular", distance: "25m", icon: "navigation", latitude: 0, longitude: 0 },
+  { id: "pop-2", name: "Downtown", address: "City Center", type: "popular", distance: "15m", icon: "map-pin", latitude: 0, longitude: 0 },
+  { id: "pop-3", name: "Mall", address: "Shopping Center", type: "popular", distance: "10m", icon: "shopping-bag", latitude: 0, longitude: 0 },
+  { id: "pop-4", name: "Station", address: "Central Railway", type: "popular", distance: "12m", icon: "map", latitude: 0, longitude: 0 },
+  { id: "pop-5", name: "Hospital", address: "Medical Center", type: "popular", distance: "8m", icon: "plus-circle", latitude: 0, longitude: 0 },
 ];
 
 const SEARCHABLE_PLACES: PlaceSuggestion[] = [
-  { id: "s-1", name: "Airport Terminal 1", address: "Departure & Arrivals, Terminal 1", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-2", name: "Airport Terminal 2", address: "International Flights, Terminal 2", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-3", name: "Central Park", address: "Recreation Area, Downtown", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-4", name: "Central Station", address: "Main Railway Hub", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-5", name: "City Mall", address: "Shopping & Entertainment Complex", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-6", name: "Convention Center", address: "Business & Events Venue", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-7", name: "Downtown Plaza", address: "City Center Square", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-8", name: "Grand Hotel", address: "5-Star Luxury Accommodation", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-9", name: "Hospital Emergency", address: "24/7 Medical Services", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-10", name: "Museum of Art", address: "Cultural & Art Exhibition", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-11", name: "National Stadium", address: "Sports & Events Arena", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-12", name: "Opera House", address: "Performing Arts Theater", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-13", name: "Restaurant Row", address: "Dining & Nightlife District", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-14", name: "University Campus", address: "Educational Institution", type: "search", latitude: 0, longitude: 0 },
-  { id: "s-15", name: "Beach Resort", address: "Coastal Recreation Area", type: "search", latitude: 0, longitude: 0 },
+  { id: "s-1", name: "Airport Terminal 1", address: "Departure & Arrivals", type: "search", icon: "navigation", latitude: 0, longitude: 0 },
+  { id: "s-2", name: "Airport Terminal 2", address: "International Flights", type: "search", icon: "navigation", latitude: 0, longitude: 0 },
+  { id: "s-3", name: "Central Park", address: "Recreation Area", type: "search", icon: "sun", latitude: 0, longitude: 0 },
+  { id: "s-4", name: "Central Station", address: "Main Railway Hub", type: "search", icon: "map", latitude: 0, longitude: 0 },
+  { id: "s-5", name: "City Mall", address: "Shopping Complex", type: "search", icon: "shopping-bag", latitude: 0, longitude: 0 },
+  { id: "s-6", name: "Convention Center", address: "Events Venue", type: "search", icon: "calendar", latitude: 0, longitude: 0 },
+  { id: "s-7", name: "Downtown Plaza", address: "City Center", type: "search", icon: "map-pin", latitude: 0, longitude: 0 },
+  { id: "s-8", name: "Grand Hotel", address: "5-Star Luxury", type: "search", icon: "star", latitude: 0, longitude: 0 },
+  { id: "s-9", name: "Hospital Emergency", address: "24/7 Medical", type: "search", icon: "plus-circle", latitude: 0, longitude: 0 },
+  { id: "s-10", name: "Museum of Art", address: "Cultural Exhibition", type: "search", icon: "image", latitude: 0, longitude: 0 },
+  { id: "s-11", name: "National Stadium", address: "Sports Arena", type: "search", icon: "award", latitude: 0, longitude: 0 },
+  { id: "s-12", name: "Restaurant Row", address: "Dining District", type: "search", icon: "coffee", latitude: 0, longitude: 0 },
+  { id: "s-13", name: "University Campus", address: "Education Center", type: "search", icon: "book", latitude: 0, longitude: 0 },
+  { id: "s-14", name: "Beach Resort", address: "Coastal Area", type: "search", icon: "sun", latitude: 0, longitude: 0 },
+  { id: "s-15", name: "Tech Park", address: "Business District", type: "search", icon: "briefcase", latitude: 0, longitude: 0 },
 ];
 
 export default function DestinationSearchScreen({ navigation }: Props) {
@@ -140,13 +144,13 @@ export default function DestinationSearchScreen({ navigation }: Props) {
   }, []);
 
   const searchResults = useMemo(() => {
-    if (destination.length < 2) return [];
-    const query = destination.toLowerCase();
+    if (destination.length < 1) return [];
+    const query = destination.toLowerCase().trim();
     return SEARCHABLE_PLACES.filter(
       (place) =>
         place.name.toLowerCase().includes(query) ||
         place.address.toLowerCase().includes(query)
-    ).slice(0, 5);
+    ).slice(0, 6);
   }, [destination]);
 
   const handleLocationSelect = (place: PlaceSuggestion | typeof SAVED_LOCATIONS[0]) => {
@@ -160,14 +164,14 @@ export default function DestinationSearchScreen({ navigation }: Props) {
         longitude: currentCoords.longitude || 0,
       },
       destination: {
-        address: place.address,
+        address: "address" in place ? place.address : place.name,
         latitude: place.latitude || 0,
         longitude: place.longitude || 0,
       },
     });
   };
 
-  const showSearchResults = destination.length >= 2 && searchResults.length > 0;
+  const showSearchResults = destination.length >= 1 && searchResults.length > 0;
 
   return (
     <KeyboardAwareScrollViewCompat
@@ -221,31 +225,30 @@ export default function DestinationSearchScreen({ navigation }: Props) {
       {showSearchResults ? (
         <Animated.View entering={FadeInDown.springify()} style={styles.section}>
           <ThemedText type="caption" style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-            SEARCH RESULTS
+            SUGGESTIONS
           </ThemedText>
           <View style={[styles.resultsCard, { backgroundColor: theme.backgroundDefault }]}>
             {searchResults.map((place, index) => (
-              <Animated.View key={place.id} entering={FadeInDown.delay(index * 50)}>
-                <Pressable
-                  onPress={() => handleLocationSelect(place)}
-                  style={({ pressed }) => [
-                    styles.resultRow,
-                    { backgroundColor: pressed ? theme.backgroundSecondary : "transparent" },
-                    index < searchResults.length - 1 && [styles.resultBorder, { borderBottomColor: theme.backgroundSecondary }],
-                  ]}
-                >
-                  <View style={[styles.resultIcon, { backgroundColor: theme.accent + "20" }]}>
-                    <Feather name="map-pin" size={16} color={theme.accent} />
-                  </View>
-                  <View style={styles.resultText}>
-                    <ThemedText type="body">{place.name}</ThemedText>
-                    <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                      {place.address}
-                    </ThemedText>
-                  </View>
-                  <Feather name="arrow-up-left" size={18} color={theme.textTertiary} />
-                </Pressable>
-              </Animated.View>
+              <Pressable
+                key={place.id}
+                onPress={() => handleLocationSelect(place)}
+                style={({ pressed }) => [
+                  styles.resultRow,
+                  { backgroundColor: pressed ? theme.backgroundSecondary : "transparent" },
+                  index < searchResults.length - 1 && [styles.resultBorder, { borderBottomColor: theme.backgroundSecondary }],
+                ]}
+              >
+                <View style={[styles.resultIcon, { backgroundColor: theme.accent + "20" }]}>
+                  <Feather name={place.icon} size={16} color={theme.accent} />
+                </View>
+                <View style={styles.resultText}>
+                  <ThemedText type="body">{place.name}</ThemedText>
+                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                    {place.address}
+                  </ThemedText>
+                </View>
+                <Feather name="arrow-up-left" size={16} color={theme.textTertiary} />
+              </Pressable>
             ))}
           </View>
         </Animated.View>
@@ -269,56 +272,54 @@ export default function DestinationSearchScreen({ navigation }: Props) {
 
           <Animated.View entering={FadeInUp.delay(200)} style={styles.section}>
             <ThemedText type="caption" style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-              POPULAR DESTINATIONS
+              QUICK ACCESS
             </ThemedText>
-            <View style={[styles.popularGrid]}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.popularScroll}
+            >
               {POPULAR_DESTINATIONS.map((place, index) => (
-                <Animated.View key={place.id} entering={FadeInUp.delay(250 + index * 50)}>
-                  <Pressable
-                    onPress={() => handleLocationSelect(place)}
-                    style={({ pressed }) => [
-                      styles.popularCard,
-                      { 
-                        backgroundColor: pressed ? theme.backgroundSecondary : theme.backgroundDefault,
-                        borderColor: theme.backgroundSecondary,
-                      },
-                    ]}
-                  >
-                    <View style={[styles.popularIcon, { backgroundColor: theme.accent + "15" }]}>
-                      <Feather 
-                        name={
-                          place.name.includes("Airport") ? "navigation" :
-                          place.name.includes("Mall") ? "shopping-bag" :
-                          place.name.includes("Station") ? "map" :
-                          place.name.includes("Hospital") ? "plus-circle" :
-                          "map-pin"
-                        } 
-                        size={18} 
-                        color={theme.accent} 
-                      />
-                    </View>
-                    <ThemedText type="small" numberOfLines={1}>{place.name}</ThemedText>
-                    <ThemedText type="caption" style={{ color: theme.textTertiary }}>
-                      {place.distance}
-                    </ThemedText>
-                  </Pressable>
-                </Animated.View>
+                <Pressable
+                  key={place.id}
+                  onPress={() => handleLocationSelect(place)}
+                  style={({ pressed }) => [
+                    styles.popularCard,
+                    { 
+                      backgroundColor: pressed ? theme.backgroundSecondary : theme.backgroundDefault,
+                    },
+                  ]}
+                >
+                  <View style={[styles.popularIcon, { backgroundColor: theme.accent + "15" }]}>
+                    <Feather name={place.icon} size={16} color={theme.accent} />
+                  </View>
+                  <ThemedText type="caption" numberOfLines={1} style={styles.popularName}>
+                    {place.name}
+                  </ThemedText>
+                  <ThemedText type="caption" style={{ color: theme.textTertiary, fontSize: 11 }}>
+                    {place.distance}
+                  </ThemedText>
+                </Pressable>
               ))}
-            </View>
+            </ScrollView>
           </Animated.View>
 
-          <Animated.View entering={FadeInUp.delay(400)} style={styles.section}>
-            <View style={[styles.tipCard, { backgroundColor: theme.accent + "10", borderColor: theme.accent + "30" }]}>
-              <Feather name="info" size={18} color={theme.accent} />
-              <View style={styles.tipText}>
-                <ThemedText type="small" style={{ color: theme.accent }}>
-                  Pro tip
-                </ThemedText>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  Start typing to see location suggestions. Save frequent places for quick access.
-                </ThemedText>
-              </View>
-            </View>
+          <Animated.View entering={FadeInUp.delay(300)} style={styles.section}>
+            <ThemedText type="caption" style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+              RECENT
+            </ThemedText>
+            <LocationRow
+              icon="clock"
+              title="Central Station"
+              subtitle="Main Railway Hub"
+              onPress={() => handleLocationSelect(SEARCHABLE_PLACES[3])}
+            />
+            <LocationRow
+              icon="clock"
+              title="City Mall"
+              subtitle="Shopping Complex"
+              onPress={() => handleLocationSelect(SEARCHABLE_PLACES[4])}
+            />
           </Animated.View>
         </>
       )}
@@ -331,7 +332,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inputsContainer: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   inputRow: {
     flexDirection: "row",
@@ -369,7 +370,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: 44,
-    fontSize: 17,
+    fontSize: 16,
     paddingHorizontal: Spacing.sm,
   },
   inputLoader: {
@@ -388,11 +389,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     marginBottom: Spacing.sm,
     marginLeft: Spacing.xs,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
     fontWeight: "600",
+    fontSize: 11,
   },
   resultsCard: {
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.md,
     overflow: "hidden",
   },
   resultRow: {
@@ -400,53 +402,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.md,
     paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.md,
   },
   resultBorder: {
     borderBottomWidth: 1,
   },
   resultIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   resultText: {
     flex: 1,
-    gap: 2,
+    gap: 1,
   },
-  popularGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  popularScroll: {
     gap: Spacing.sm,
   },
   popularCard: {
-    width: (Spacing.lg * 2 + 100),
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
+    width: 72,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    gap: Spacing.xs,
+    alignItems: "center",
+    gap: 4,
   },
   popularIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.xs,
   },
-  tipCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-  },
-  tipText: {
-    flex: 1,
-    gap: 4,
+  popularName: {
+    fontWeight: "500",
+    fontSize: 12,
+    textAlign: "center",
   },
 });
