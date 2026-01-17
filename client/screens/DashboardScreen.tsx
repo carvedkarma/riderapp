@@ -5,17 +5,18 @@ import {
   Platform,
   Dimensions,
   Pressable,
-  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   FadeIn,
+  FadeInDown,
   FadeInUp,
   SlideInUp,
 } from "react-native-reanimated";
@@ -40,8 +41,9 @@ interface Props {
 }
 
 const SAVED_LOCATIONS = [
-  { id: "1", name: "Home", address: "123 Main Street", icon: "home" as const },
-  { id: "2", name: "Work", address: "456 Business Ave", icon: "briefcase" as const },
+  { id: "1", name: "Home", address: "123 Main Street", icon: "home" as const, color: "#4A90D9" },
+  { id: "2", name: "Work", address: "456 Business Ave", icon: "briefcase" as const, color: "#50C878" },
+  { id: "3", name: "Gym", address: "789 Fitness Blvd", icon: "heart" as const, color: "#FF6B6B" },
 ];
 
 const INITIAL_REGION = {
@@ -53,6 +55,21 @@ const INITIAL_REGION = {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function getSuggestion(): string {
+  const hour = new Date().getHours();
+  if (hour >= 7 && hour < 10) return "Rush hour - book early for best prices";
+  if (hour >= 17 && hour < 20) return "Peak evening demand - prices may vary";
+  if (hour >= 22 || hour < 6) return "Late night rides - stay safe";
+  return "Great time to ride - normal pricing";
+}
+
 export default function DashboardScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
@@ -60,7 +77,7 @@ export default function DashboardScreen({ navigation }: Props) {
 
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
-  const [currentAddress, setCurrentAddress] = useState("Set your destination");
+  const [currentAddress, setCurrentAddress] = useState("Where to?");
 
   const menuScale = useSharedValue(1);
   const profileScale = useSharedValue(1);
@@ -173,116 +190,166 @@ export default function DashboardScreen({ navigation }: Props) {
             }}
           >
             <View style={styles.userMarker}>
-              <View style={[styles.userMarkerInner, { backgroundColor: theme.mapAccent }]} />
+              <View style={[styles.userMarkerInner, { backgroundColor: theme.accent }]} />
             </View>
           </Marker>
         ) : null}
       </MapViewWrapper>
 
-      <View style={[styles.topBar, { paddingTop: insets.top + Spacing.md }]}>
-        <AnimatedPressable
-          onPress={handleMenuPress}
-          onPressIn={() => {
-            menuScale.value = withSpring(0.9);
-          }}
-          onPressOut={() => {
-            menuScale.value = withSpring(1);
-          }}
-          style={[styles.iconButton, { backgroundColor: theme.backgroundRoot }, menuAnimatedStyle]}
-        >
-          <Feather name="clock" size={22} color={theme.text} />
-        </AnimatedPressable>
+      <LinearGradient
+        colors={["rgba(0,0,0,0.8)", "transparent"]}
+        style={[styles.topGradient, { paddingTop: insets.top }]}
+      />
 
-        <AnimatedPressable
-          onPress={handleProfilePress}
-          onPressIn={() => {
-            profileScale.value = withSpring(0.9);
-          }}
-          onPressOut={() => {
-            profileScale.value = withSpring(1);
-          }}
-          style={[styles.iconButton, { backgroundColor: theme.backgroundRoot }, profileAnimatedStyle]}
-        >
-          <Feather name="user" size={22} color={theme.text} />
-        </AnimatedPressable>
+      <View style={[styles.topBar, { paddingTop: insets.top + Spacing.md }]}>
+        <Animated.View entering={FadeIn.delay(200)}>
+          <View style={styles.logoContainer}>
+            <View style={[styles.logoIcon, { backgroundColor: theme.accent }]}>
+              <Feather name="navigation" size={16} color="#000000" />
+            </View>
+            <ThemedText type="h3" style={styles.logoText}>RideX</ThemedText>
+          </View>
+        </Animated.View>
+
+        <View style={styles.topButtons}>
+          <AnimatedPressable
+            onPress={handleMenuPress}
+            onPressIn={() => {
+              menuScale.value = withSpring(0.9);
+            }}
+            onPressOut={() => {
+              menuScale.value = withSpring(1);
+            }}
+            style={[styles.iconButton, { backgroundColor: "rgba(28, 28, 30, 0.9)" }, menuAnimatedStyle]}
+          >
+            <Feather name="clock" size={20} color={theme.text} />
+          </AnimatedPressable>
+
+          <AnimatedPressable
+            onPress={handleProfilePress}
+            onPressIn={() => {
+              profileScale.value = withSpring(0.9);
+            }}
+            onPressOut={() => {
+              profileScale.value = withSpring(1);
+            }}
+            style={[styles.iconButton, { backgroundColor: "rgba(28, 28, 30, 0.9)" }, profileAnimatedStyle]}
+          >
+            <Feather name="user" size={20} color={theme.text} />
+          </AnimatedPressable>
+        </View>
       </View>
 
       <Animated.View
         entering={FadeIn.delay(100)}
-        style={[styles.currentLocationButton, { backgroundColor: theme.backgroundRoot }]}
+        style={[styles.currentLocationButton, { backgroundColor: "rgba(28, 28, 30, 0.9)" }]}
       >
         <Pressable onPress={handleCurrentLocationPress} style={styles.locationButtonInner}>
-          <Feather name="crosshair" size={22} color={theme.text} />
+          <Feather name="navigation" size={20} color={theme.accent} />
         </Pressable>
       </Animated.View>
 
       <Animated.View
-        entering={SlideInUp.delay(200).springify()}
-        style={[
-          styles.bottomSheet,
-          {
-            backgroundColor: theme.backgroundRoot,
-            paddingBottom: insets.bottom + Spacing.xl,
-          },
-        ]}
+        entering={SlideInUp.delay(300).springify().damping(20)}
+        style={[styles.bottomSheet]}
       >
-        <View style={styles.bottomSheetHandle}>
-          <View style={[styles.handleBar, { backgroundColor: theme.backgroundTertiary }]} />
-        </View>
-
-        <View style={styles.bottomSheetContent}>
-          <ThemedText type="h2" style={styles.sheetTitle}>
-            Set your destination
-          </ThemedText>
-          <ThemedText type="caption" style={{ color: theme.textSecondary, marginTop: -Spacing.sm }}>
-            Drag map to move pin
-          </ThemedText>
-
-          <Pressable
-            onPress={handleDestinationPress}
-            style={[styles.destinationInput, { backgroundColor: theme.backgroundSecondary }]}
-          >
-            <View style={[styles.destinationIcon, { backgroundColor: theme.text }]}>
-              <Feather name="square" size={10} color={theme.backgroundRoot} />
-            </View>
-            <ThemedText type="body" style={{ flex: 1 }}>
-              {currentAddress}
-            </ThemedText>
-            <Feather name="search" size={20} color={theme.textSecondary} />
-          </Pressable>
-
-          <View style={styles.savedLocations}>
-            {SAVED_LOCATIONS.map((loc) => (
-              <Pressable
-                key={loc.id}
-                onPress={() => handleSavedLocationPress(loc.id)}
-                style={[styles.savedLocationRow, { borderBottomColor: theme.backgroundSecondary }]}
-              >
-                <View style={[styles.savedLocationIcon, { backgroundColor: theme.backgroundSecondary }]}>
-                  <Feather name={loc.icon} size={16} color={theme.text} />
-                </View>
-                <View style={styles.savedLocationText}>
-                  <ThemedText type="h4">{loc.name}</ThemedText>
-                  <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                    {loc.address}
-                  </ThemedText>
-                </View>
-                <Feather name="chevron-right" size={20} color={theme.textTertiary} />
-              </Pressable>
-            ))}
+        <LinearGradient
+          colors={["#1C1C1E", "#0A0A0A"]}
+          style={[styles.bottomSheetGradient, { paddingBottom: insets.bottom + Spacing.lg }]}
+        >
+          <View style={styles.bottomSheetHandle}>
+            <View style={[styles.handleBar, { backgroundColor: "rgba(255,255,255,0.2)" }]} />
           </View>
 
-          <Button onPress={handleDestinationPress} fullWidth>
-            Confirm destination
-          </Button>
-        </View>
+          <View style={styles.bottomSheetContent}>
+            <Animated.View entering={FadeInDown.delay(400)}>
+              <ThemedText type="h2" style={styles.greeting}>
+                {getGreeting()}
+              </ThemedText>
+              <View style={styles.suggestionRow}>
+                <View style={[styles.suggestionDot, { backgroundColor: theme.accent }]} />
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                  {getSuggestion()}
+                </ThemedText>
+              </View>
+            </Animated.View>
+
+            <Animated.View entering={FadeInUp.delay(500)}>
+              <Pressable
+                onPress={handleDestinationPress}
+                style={[styles.destinationInput, { backgroundColor: "rgba(255,255,255,0.08)" }]}
+              >
+                <View style={styles.searchIconContainer}>
+                  <Feather name="search" size={18} color={theme.accent} />
+                </View>
+                <ThemedText type="body" style={{ color: theme.textSecondary }}>
+                  {currentAddress === "Current Location" ? "Where to?" : currentAddress}
+                </ThemedText>
+                <View style={[styles.scheduleButton, { backgroundColor: theme.accent }]}>
+                  <Feather name="clock" size={14} color="#000000" />
+                  <ThemedText type="caption" style={{ color: "#000000", fontWeight: "600" }}>
+                    Now
+                  </ThemedText>
+                </View>
+              </Pressable>
+            </Animated.View>
+
+            <Animated.View entering={FadeInUp.delay(600)} style={styles.savedLocationsContainer}>
+              <View style={styles.savedLocationsScroll}>
+                {SAVED_LOCATIONS.map((loc, index) => (
+                  <Animated.View 
+                    key={loc.id}
+                    entering={FadeInUp.delay(650 + index * 100).springify()}
+                  >
+                    <Pressable
+                      onPress={() => handleSavedLocationPress(loc.id)}
+                      style={[styles.savedLocationPill]}
+                    >
+                      <View style={[styles.savedLocationIconSmall, { backgroundColor: loc.color + "30" }]}>
+                        <Feather name={loc.icon} size={14} color={loc.color} />
+                      </View>
+                      <ThemedText type="small" style={{ color: theme.text }}>
+                        {loc.name}
+                      </ThemedText>
+                    </Pressable>
+                  </Animated.View>
+                ))}
+              </View>
+            </Animated.View>
+
+            <Animated.View entering={FadeInUp.delay(800)}>
+              <View style={styles.promoCard}>
+                <LinearGradient
+                  colors={[theme.accent + "20", theme.accent + "05"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.promoGradient}
+                >
+                  <View style={styles.promoContent}>
+                    <View style={[styles.promoIcon, { backgroundColor: theme.accent }]}>
+                      <Feather name="percent" size={16} color="#000000" />
+                    </View>
+                    <View style={styles.promoText}>
+                      <ThemedText type="h4">20% off your next ride</ThemedText>
+                      <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                        Use code RIDEX20
+                      </ThemedText>
+                    </View>
+                    <Feather name="chevron-right" size={20} color={theme.accent} />
+                  </View>
+                </LinearGradient>
+              </View>
+            </Animated.View>
+          </View>
+        </LinearGradient>
       </Animated.View>
 
       <View style={styles.mapCenterMarker}>
-        <View style={[styles.centerPin, { backgroundColor: theme.text }]}>
-          <View style={[styles.centerPinDot, { backgroundColor: theme.backgroundRoot }]} />
+        <View style={[styles.centerPinOuter, { borderColor: theme.accent }]}>
+          <View style={[styles.centerPinInner, { backgroundColor: theme.accent }]} />
         </View>
-        <View style={[styles.centerPinShadow, { backgroundColor: theme.text }]} />
+        <View style={[styles.centerPinLine, { backgroundColor: theme.accent }]} />
+        <View style={[styles.centerPinShadow]} />
       </View>
     </View>
   );
@@ -295,6 +362,14 @@ const styles = StyleSheet.create({
   map: {
     ...StyleSheet.absoluteFillObject,
   },
+  topGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    zIndex: 5,
+  },
   topBar: {
     position: "absolute",
     top: 0,
@@ -302,27 +377,50 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: Spacing.lg,
     zIndex: 10,
   },
-  iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.full,
+  logoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  logoIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    ...Shadows.medium,
+  },
+  logoText: {
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  topButtons: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  iconButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   currentLocationButton: {
     position: "absolute",
     right: Spacing.lg,
-    bottom: "48%",
+    bottom: "52%",
     width: 44,
     height: 44,
-    borderRadius: BorderRadius.full,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    ...Shadows.medium,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
     zIndex: 10,
   },
   locationButtonInner: {
@@ -336,89 +434,151 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    ...Shadows.large,
+    borderTopLeftRadius: BorderRadius["2xl"],
+    borderTopRightRadius: BorderRadius["2xl"],
+    overflow: "hidden",
+  },
+  bottomSheetGradient: {
+    borderTopLeftRadius: BorderRadius["2xl"],
+    borderTopRightRadius: BorderRadius["2xl"],
   },
   bottomSheetHandle: {
     alignItems: "center",
     paddingVertical: Spacing.md,
   },
   handleBar: {
-    width: 36,
-    height: 5,
-    borderRadius: 3,
+    width: 40,
+    height: 4,
+    borderRadius: 2,
   },
   bottomSheetContent: {
     paddingHorizontal: Spacing.xl,
     gap: Spacing.lg,
   },
-  sheetTitle: {
-    textAlign: "center",
+  greeting: {
+    marginBottom: Spacing.xs,
+  },
+  suggestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  suggestionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   destinationInput: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.sm,
+    paddingLeft: Spacing.md,
+    paddingRight: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  destinationIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
+  searchIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(212, 184, 122, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
-  savedLocations: {
-    gap: 0,
+  scheduleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    marginLeft: "auto",
   },
-  savedLocationRow: {
+  savedLocationsContainer: {
+    marginTop: -Spacing.sm,
+  },
+  savedLocationsScroll: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  savedLocationPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  savedLocationIconSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promoCard: {
+    borderRadius: BorderRadius.lg,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(212, 184, 122, 0.2)",
+  },
+  promoGradient: {
+    padding: Spacing.lg,
+  },
+  promoContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
   },
-  savedLocationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  promoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  savedLocationText: {
+  promoText: {
     flex: 1,
     gap: 2,
   },
   mapCenterMarker: {
     position: "absolute",
-    top: "35%",
+    top: "30%",
     left: "50%",
-    marginLeft: -15,
+    marginLeft: -16,
     alignItems: "center",
     zIndex: 5,
   },
-  centerPin: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  centerPinOuter: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 3,
+    backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",
     justifyContent: "center",
-    ...Shadows.medium,
   },
-  centerPinDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  centerPinInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  centerPinLine: {
+    width: 3,
+    height: 16,
+    borderRadius: 1.5,
   },
   centerPinShadow: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginTop: 4,
-    opacity: 0.3,
+    width: 20,
+    height: 8,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    marginTop: 2,
   },
   userMarker: {
     width: 24,
@@ -426,14 +586,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     borderWidth: 3,
-    borderColor: "#007AFF",
+    borderColor: "#D4B87A",
     alignItems: "center",
     justifyContent: "center",
     ...Shadows.medium,
   },
   userMarkerInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });
