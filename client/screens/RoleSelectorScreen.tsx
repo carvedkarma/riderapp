@@ -15,20 +15,10 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
+import { useAppStore } from "@/stores/appStore";
 import { Spacing, BorderRadius } from "@/constants/theme";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 const { width } = Dimensions.get("window");
-
-type RoleSelectorScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
-  "RoleSelector"
->;
-
-interface Props {
-  navigation: RoleSelectorScreenNavigationProp;
-}
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -98,16 +88,19 @@ function RoleCard({ title, subtitle, icon, gradient, onPress, delay }: RoleCardP
   );
 }
 
-export default function RoleSelectorScreen({ navigation }: Props) {
+export default function RoleSelectorScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
+  const { setMode, toggleDebugMode } = useAppStore();
 
   const handleRiderPress = () => {
-    navigation.replace("Dashboard");
+    setMode("rider");
+    toggleDebugMode();
   };
 
   const handleDriverPress = () => {
-    navigation.replace("DriverOnboarding");
+    setMode("driver");
+    toggleDebugMode();
   };
 
   return (
@@ -127,17 +120,17 @@ export default function RoleSelectorScreen({ navigation }: Props) {
 
         <Animated.View entering={FadeInDown.delay(200)}>
           <ThemedText type="h2" style={styles.welcomeTitle}>
-            Welcome to RideX
+            Developer Mode
           </ThemedText>
           <ThemedText type="body" style={[styles.welcomeSubtitle, { color: theme.textSecondary }]}>
-            Choose how you want to use the app
+            Select which app to test
           </ThemedText>
         </Animated.View>
 
         <View style={styles.rolesContainer}>
           <RoleCard
-            title="Ride"
-            subtitle="Book rides and travel anywhere"
+            title="Rider App"
+            subtitle="Test the passenger experience"
             icon="navigation"
             gradient={["#4A90D9", "#2E5A8E"]}
             onPress={handleRiderPress}
@@ -145,8 +138,8 @@ export default function RoleSelectorScreen({ navigation }: Props) {
           />
 
           <RoleCard
-            title="Drive"
-            subtitle="Earn money on your schedule"
+            title="Driver App"
+            subtitle="Test the driver experience"
             icon="truck"
             gradient={[theme.accent, "#8B7355"]}
             onPress={handleDriverPress}
@@ -155,9 +148,12 @@ export default function RoleSelectorScreen({ navigation }: Props) {
         </View>
 
         <Animated.View entering={FadeInUp.delay(500)} style={styles.footer}>
-          <ThemedText type="caption" style={{ color: theme.textTertiary, textAlign: "center" }}>
-            You can switch between modes anytime
-          </ThemedText>
+          <View style={[styles.debugBadge, { backgroundColor: theme.error + "20" }]}>
+            <Feather name="tool" size={14} color={theme.error} />
+            <ThemedText type="caption" style={{ color: theme.error }}>
+              Debug Menu - Not visible in production
+            </ThemedText>
+          </View>
         </Animated.View>
       </View>
     </View>
@@ -248,5 +244,14 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: "auto",
     paddingBottom: Spacing["2xl"],
+    alignItems: "center",
+  },
+  debugBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
   },
 });

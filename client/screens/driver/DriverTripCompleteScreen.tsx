@@ -12,15 +12,15 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
-import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+import type { DriverStackParamList } from "@/navigation/DriverStackNavigator";
 
 type DriverTripCompleteScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
+  DriverStackParamList,
   "DriverTripComplete"
 >;
 
 type DriverTripCompleteScreenRouteProp = RouteProp<
-  RootStackParamList,
+  DriverStackParamList,
   "DriverTripComplete"
 >;
 

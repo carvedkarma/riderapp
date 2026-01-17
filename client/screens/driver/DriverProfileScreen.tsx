@@ -11,10 +11,11 @@ import { GlassCard } from "@/components/GlassCard";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+import type { DriverStackParamList } from "@/navigation/DriverStackNavigator";
+import { useAppStore } from "@/stores/appStore";
 
 type DriverProfileScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
+  DriverStackParamList,
   "DriverProfile"
 >;
 
@@ -79,12 +80,20 @@ export default function DriverProfileScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { theme } = useTheme();
+  const { setMode, toggleDebugMode } = useAppStore();
 
   const handleSwitchToRider = () => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    navigation.replace("RoleSelector");
+    setMode("rider");
+  };
+
+  const handleOpenDebugMenu = () => {
+    if (Platform.OS !== "web") {
+      Haptics.selectionAsync();
+    }
+    toggleDebugMode();
   };
 
   return (
@@ -222,19 +231,23 @@ export default function DriverProfileScreen({ navigation }: Props) {
       <Animated.View entering={FadeInDown.delay(400)} style={styles.section}>
         <View style={[styles.menuGroup, { backgroundColor: theme.backgroundDefault }]}>
           <MenuItem
-            icon="repeat"
-            title="Switch to Rider Mode"
-            onPress={handleSwitchToRider}
+            icon="log-out"
+            title="Sign Out"
+            danger
           />
         </View>
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(450)} style={styles.section}>
+        <ThemedText type="caption" style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+          DEVELOPER
+        </ThemedText>
         <View style={[styles.menuGroup, { backgroundColor: theme.backgroundDefault }]}>
           <MenuItem
-            icon="log-out"
-            title="Sign Out"
-            danger
+            icon="tool"
+            title="Debug Menu"
+            subtitle="Switch between apps"
+            onPress={handleOpenDebugMenu}
           />
         </View>
       </Animated.View>

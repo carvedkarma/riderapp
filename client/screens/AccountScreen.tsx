@@ -8,12 +8,13 @@ import * as Haptics from "expo-haptics";
 import { ThemedText } from "@/components/ThemedText";
 import { GlassCard } from "@/components/GlassCard";
 import { useTheme } from "@/hooks/useTheme";
+import { useAppStore } from "@/stores/appStore";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "@/navigation/RootStackNavigator";
+import type { RiderStackParamList } from "@/navigation/RiderStackNavigator";
 
 type AccountScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
+  RiderStackParamList,
   "Account"
 >;
 
@@ -85,6 +86,14 @@ export default function AccountScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { theme } = useTheme();
+  const { toggleDebugMode } = useAppStore();
+
+  const handleOpenDebugMenu = () => {
+    if (Platform.OS !== "web") {
+      Haptics.selectionAsync();
+    }
+    toggleDebugMode();
+  };
 
   return (
     <ScrollView
@@ -218,6 +227,20 @@ export default function AccountScreen({ navigation }: Props) {
             title="Sign Out"
             onPress={() => {}}
             danger
+          />
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <ThemedText type="caption" style={[styles.sectionTitle, { color: theme.textSecondary }]}>
+          DEVELOPER
+        </ThemedText>
+        <View style={[styles.menuGroup, { backgroundColor: theme.backgroundDefault }]}>
+          <MenuItem
+            icon="tool"
+            title="Debug Menu"
+            subtitle="Switch between apps"
+            onPress={handleOpenDebugMenu}
           />
         </View>
       </View>
