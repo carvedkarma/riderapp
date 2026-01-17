@@ -3,13 +3,15 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet } from "react-native";
-import HomeStackNavigator from "@/navigation/HomeStackNavigator";
-import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
+import HomeScreen from "@/screens/HomeScreen";
+import ActivityScreen from "@/screens/ActivityScreen";
+import AccountScreen from "@/screens/AccountScreen";
 import { useTheme } from "@/hooks/useTheme";
 
 export type MainTabParamList = {
   HomeTab: undefined;
-  ProfileTab: undefined;
+  ActivityTab: undefined;
+  AccountTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -45,19 +47,39 @@ export default function MainTabNavigator() {
     >
       <Tab.Screen
         name="HomeTab"
-        component={HomeStackNavigator}
+        component={HomeScreen}
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="home" size={size} color={color} />
+            <Feather name="map-pin" size={size} color={color} />
           ),
         }}
       />
       <Tab.Screen
-        name="ProfileTab"
-        component={ProfileStackNavigator}
+        name="ActivityTab"
+        component={ActivityScreen}
         options={{
-          title: "Profile",
+          title: "Activity",
+          headerShown: true,
+          headerTitle: "Activity",
+          headerTransparent: true,
+          headerBlurEffect: isDark ? "dark" : "light",
+          headerTintColor: theme.text,
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="clock" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="AccountTab"
+        component={AccountScreen}
+        options={{
+          title: "Account",
+          headerShown: true,
+          headerTitle: "Account",
+          headerTransparent: true,
+          headerBlurEffect: isDark ? "dark" : "light",
+          headerTintColor: theme.text,
           tabBarIcon: ({ color, size }) => (
             <Feather name="user" size={size} color={color} />
           ),

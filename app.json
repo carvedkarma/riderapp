@@ -1,29 +1,37 @@
 {
   "expo": {
-    "name": "my-app",
-    "slug": "my-app",
+    "name": "RideX",
+    "slug": "ridex",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "ridex",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ridex.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "RideX needs your location to find nearby drivers and provide accurate pickup locations.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "RideX needs your location to track your ride and provide real-time updates."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/images/icon.png"
       },
+      "package": "com.ridex.app",
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       [
@@ -38,7 +46,13 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "RideX needs your location to find nearby drivers and track your ride."
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true
