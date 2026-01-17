@@ -1,5 +1,7 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+
+import RoleSelectorScreen from "@/screens/RoleSelectorScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
 import DestinationSearchScreen from "@/screens/DestinationSearchScreen";
 import RideConfirmationScreen from "@/screens/RideConfirmationScreen";
@@ -11,6 +13,14 @@ import PaymentMethodsScreen from "@/screens/PaymentMethodsScreen";
 import SavedPlacesScreen from "@/screens/SavedPlacesScreen";
 import ActivityScreen from "@/screens/ActivityScreen";
 import AccountScreen from "@/screens/AccountScreen";
+
+import DriverOnboardingScreen from "@/screens/driver/DriverOnboardingScreen";
+import DriverHomeScreen from "@/screens/driver/DriverHomeScreen";
+import DriverActiveTripScreen from "@/screens/driver/DriverActiveTripScreen";
+import DriverTripCompleteScreen from "@/screens/driver/DriverTripCompleteScreen";
+import DriverEarningsScreen from "@/screens/driver/DriverEarningsScreen";
+import DriverProfileScreen from "@/screens/driver/DriverProfileScreen";
+
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -30,6 +40,7 @@ interface DriverInfo {
 }
 
 export type RootStackParamList = {
+  RoleSelector: undefined;
   Dashboard: undefined;
   DestinationSearch: { savedLocationId?: string } | undefined;
   RideConfirmation: {
@@ -55,6 +66,17 @@ export type RootStackParamList = {
   SavedPlaces: undefined;
   Activity: undefined;
   Account: undefined;
+  DriverOnboarding: undefined;
+  DriverHome: undefined;
+  DriverActiveTrip: {
+    tripId: string;
+  };
+  DriverTripComplete: {
+    tripId: string;
+    earnings: string;
+  };
+  DriverEarnings: undefined;
+  DriverProfile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -64,7 +86,8 @@ export default function RootStackNavigator() {
   const { theme } = useTheme();
 
   return (
-    <Stack.Navigator 
+    <Stack.Navigator
+      initialRouteName="RoleSelector"
       screenOptions={{
         ...screenOptions,
         headerStyle: {
@@ -73,6 +96,12 @@ export default function RootStackNavigator() {
         headerTintColor: theme.text,
       }}
     >
+      <Stack.Screen
+        name="RoleSelector"
+        component={RoleSelectorScreen}
+        options={{ headerShown: false }}
+      />
+
       <Stack.Screen
         name="Dashboard"
         component={DashboardScreen}
@@ -153,6 +182,47 @@ export default function RootStackNavigator() {
         component={AccountScreen}
         options={{
           headerTitle: "Account",
+        }}
+      />
+
+      <Stack.Screen
+        name="DriverOnboarding"
+        component={DriverOnboardingScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="DriverHome"
+        component={DriverHomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="DriverActiveTrip"
+        component={DriverActiveTripScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="DriverTripComplete"
+        component={DriverTripCompleteScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="DriverEarnings"
+        component={DriverEarningsScreen}
+        options={{
+          headerTitle: "Earnings",
+        }}
+      />
+      <Stack.Screen
+        name="DriverProfile"
+        component={DriverProfileScreen}
+        options={{
+          headerTitle: "Profile",
         }}
       />
     </Stack.Navigator>
