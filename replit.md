@@ -1,9 +1,21 @@
 # RideX - Premium iOS Ride-Sharing App
 
 ## Overview
-RideX is a premium ride-sharing mobile application built with Expo React Native for iOS, featuring an Uber-inspired dark-mode design. The app includes **both Rider and Driver functionality** in a single codebase, with a role selector to switch between modes. It provides riders with seamless booking and drivers with comprehensive trip management and earnings tracking.
+RideX is a premium ride-sharing platform built with Expo React Native for iOS, featuring an Uber-inspired dark-mode design. The platform consists of **two separate apps** that can be published independently to the App Store:
+- **RideX** (Rider App) - For passengers to book rides
+- **RideX Driver** (Driver App) - For drivers to accept trips and manage earnings
 
 ## Architecture
+
+### Two-App Build System
+The project uses a single codebase with environment-based builds:
+- `APP_VARIANT=rider` builds the Rider app (com.ridex.rider)
+- `APP_VARIANT=driver` builds the Driver app (com.ridex.driver)
+
+Configuration is managed via `app.config.js` which dynamically sets:
+- App name, bundle identifier, and slug
+- App icons and splash screens
+- Location permission descriptions
 
 ### Frontend (Expo React Native)
 - **Navigation**: React Navigation 7 with native stack (no bottom tabs)
@@ -11,7 +23,7 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 - **State Management**: React Query for server state
 - **Styling**: StyleSheet with custom dark theme system
 - **Components**: Custom glass-morphism cards, premium buttons, animated interactions
-- **Role System**: Role selector at launch to choose Rider or Driver mode
+- **App Detection**: `client/lib/appVariant.ts` detects which app is running at runtime
 
 ### Backend (Express.js)
 - **Database**: PostgreSQL with Drizzle ORM
@@ -67,9 +79,8 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 10. **Safety Center**: SOS button, emergency contacts, trip sharing
 
 ## Driver App Features
-1. **Role Selector**: Choose between Rider and Driver modes at launch
-2. **Driver Onboarding**: Single-screen vehicle registration form
-3. **Driver Home Screen**: 
+1. **Driver Onboarding**: Single-screen vehicle registration form
+2. **Driver Home Screen**: 
    - Full-screen map with online/offline toggle
    - Today's earnings and trips summary
    - Smart zone suggestions (demand hotspots, surge alerts)
@@ -117,7 +128,7 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 ## Navigation Structure
 
 ### Rider Flow
-- RoleSelector → Dashboard (initial)
+- Dashboard (initial)
 - Dashboard → DestinationSearch (modal)
 - Dashboard → Activity (stack)
 - Dashboard → Account (stack)
@@ -125,11 +136,10 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 - Account → PaymentMethods, SavedPlaces, SafetyCenter
 
 ### Driver Flow
-- RoleSelector → DriverOnboarding → DriverHome
+- DriverOnboarding → DriverHome
 - DriverHome → DriverActiveTrip → DriverTripComplete
 - DriverHome → DriverEarnings
 - DriverHome → DriverProfile
-- DriverProfile → RoleSelector (switch to Rider mode)
 
 ## Real Data Integration
 - **Trip requests**: Real-time polling from /api/rides/pending every 3 seconds when driver online
