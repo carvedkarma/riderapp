@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
   Platform,
   Pressable,
-  Switch,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
@@ -18,17 +18,17 @@ import Animated, {
   withSpring,
   withRepeat,
   withTiming,
-  FadeIn,
-  FadeInDown,
-  FadeInUp,
   SlideInUp,
 } from "react-native-reanimated";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { MapViewWrapper, Marker } from "@/components/MapViewWrapper";
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import { useAuthStore } from "@/stores/authStore";
+import { Spacing, BorderRadius } from "@/constants/theme";
+import { getApiUrl } from "@/lib/query-client";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { DriverStackParamList } from "@/navigation/DriverStackNavigator";
 
@@ -43,6 +43,27 @@ interface Props {
   navigation: DriverHomeScreenNavigationProp;
 }
 
+interface RideRequest {
+  id: string;
+  userId: string;
+  pickupAddress: string;
+  pickupLatitude: string;
+  pickupLongitude: string;
+  destinationAddress: string;
+  destinationLatitude: string;
+  destinationLongitude: string;
+  estimatedFare: string;
+  estimatedDistance: string;
+  estimatedDuration: number;
+  vehicleTier: string;
+  status: string;
+  createdAt: string;
+  rider?: {
+    fullName: string;
+    rating: string;
+  };
+}
+
 const INITIAL_REGION = {
   latitude: 37.78825,
   longitude: -122.4324,
@@ -50,30 +71,54 @@ const INITIAL_REGION = {
   longitudeDelta: 0.0421,
 };
 
-const ZONE_SUGGESTIONS = [
-  { id: "1", zone: "Downtown", action: "High demand in 5 min", type: "hot" },
-  { id: "2", zone: "Airport", action: "Surge starting soon", type: "surge" },
-  { id: "3", zone: "Current", action: "Pickup likely within 3 min", type: "stay" },
-];
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
 export default function DriverHomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const mapRef = useRef<any>(null);
+  const queryClient = useQueryClient();
+  
+  const { user, driverProfile, updateDriverProfile } = useAuthStore();
 
-  const [isOnline, setIsOnline] = useState(false);
+  const [isOnline, setIsOnline] = useState(driverProfile?.isOnline ?? false);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [todayEarnings, setTodayEarnings] = useState(0);
-  const [todayTrips, setTodayTrips] = useState(0);
-  const [showTripRequest, setShowTripRequest] = useState(false);
+  const [currentRideRequest, setCurrentRideRequest] = useState<RideRequest | null>(null);
+  const [isAccepting, setIsAccepting] = useState(false);
 
   const pulseScale = useSharedValue(1);
   const searchingOpacity = useSharedValue(0);
 
+  const { data: pendingRides = [], refetch: refetchRides } = useQuery<RideRequest[]>({
+    queryKey: ["/api/rides/pending"],
+    enabled: isOnline && !currentRideRequest,
+    refetchInterval: isOnline && !currentRideRequest ? 3000 : false,
+  });
+
+  const { data: driverRides = [] } = useQuery<any[]>({
+    queryKey: ["/api/drivers", user?.id, "rides"],
+    enabled: !!user?.id,
+  });
+
+  const todayEarnings = driverRides
+    .filter(r => r.status === "completed" && new Date(r.completedAt).toDateString() === new Date().toDateString())
+    .reduce((sum, r) => sum + Number(r.driverEarnings || 0), 0);
+
+  const todayTrips = driverRides
+    .filter(r => r.status === "completed" && new Date(r.completedAt).toDateString() === new Date().toDateString())
+    .length;
+
+  useEffect(() => {
+    if (pendingRides.length > 0 && !currentRideRequest && isOnline) {
+      const newestRide = pendingRides[0];
+      setCurrentRideRequest(newestRide);
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    }
+  }, [pendingRides, currentRideRequest, isOnline]);
+
   useEffect(() => {
     (async () => {
+      if (Platform.OS === "web") return;
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === "granted") {
         const currentLocation = await Location.getCurrentPositionAsync({
@@ -81,7 +126,7 @@ export default function DriverHomeScreen({ navigation }: Props) {
         });
         setLocation(currentLocation);
 
-        if (mapRef.current && Platform.OS !== "web") {
+        if (mapRef.current) {
           mapRef.current.animateToRegion(
             {
               latitude: currentLocation.coords.latitude,
@@ -104,19 +149,10 @@ export default function DriverHomeScreen({ navigation }: Props) {
         true
       );
       searchingOpacity.value = withTiming(1, { duration: 500 });
-
-      const timer = setTimeout(() => {
-        setShowTripRequest(true);
-        if (Platform.OS !== "web") {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-      }, 5000);
-
-      return () => clearTimeout(timer);
     } else {
       pulseScale.value = withSpring(1);
       searchingOpacity.value = withTiming(0, { duration: 300 });
-      setShowTripRequest(false);
+      setCurrentRideRequest(null);
     }
   }, [isOnline]);
 
@@ -129,28 +165,78 @@ export default function DriverHomeScreen({ navigation }: Props) {
     opacity: searchingOpacity.value,
   }));
 
-  const handleToggleOnline = () => {
+  const handleToggleOnline = async () => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
-    setIsOnline(!isOnline);
+    
+    const newOnlineStatus = !isOnline;
+    setIsOnline(newOnlineStatus);
+    
+    if (!user?.id) return;
+    
+    try {
+      const endpoint = newOnlineStatus ? "go-online" : "go-offline";
+      const body: any = {};
+      
+      if (newOnlineStatus && location) {
+        body.latitude = location.coords.latitude.toString();
+        body.longitude = location.coords.longitude.toString();
+      }
+      
+      await fetch(new URL(`/api/drivers/${user.id}/${endpoint}`, getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      
+      updateDriverProfile({ isOnline: newOnlineStatus });
+    } catch (error) {
+      console.error("Failed to update online status:", error);
+      setIsOnline(!newOnlineStatus);
+    }
   };
 
-  const handleAcceptTrip = () => {
+  const handleAcceptTrip = async () => {
+    if (!currentRideRequest || !user?.id) return;
+    
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    setShowTripRequest(false);
-    setTodayTrips(prev => prev + 1);
-    setTodayEarnings(prev => prev + 18.50);
-    navigation.navigate("DriverActiveTrip", { tripId: "trip-1" });
+    
+    setIsAccepting(true);
+    
+    try {
+      const response = await fetch(
+        new URL(`/api/rides/${currentRideRequest.id}/accept`, getApiUrl()).toString(),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ driverId: user.id }),
+        }
+      );
+      
+      if (response.ok) {
+        setCurrentRideRequest(null);
+        queryClient.invalidateQueries({ queryKey: ["/api/rides/pending"] });
+        navigation.navigate("DriverActiveTrip", { tripId: currentRideRequest.id });
+      } else {
+        const data = await response.json();
+        setCurrentRideRequest(null);
+        refetchRides();
+      }
+    } catch (error) {
+      console.error("Failed to accept ride:", error);
+    } finally {
+      setIsAccepting(false);
+    }
   };
 
   const handleDeclineTrip = () => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    setShowTripRequest(false);
+    setCurrentRideRequest(null);
   };
 
   const handleEarningsPress = () => {
@@ -165,6 +251,12 @@ export default function DriverHomeScreen({ navigation }: Props) {
       Haptics.selectionAsync();
     }
     navigation.navigate("DriverProfile");
+  };
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const dx = (lat2 - lat1) * 69;
+    const dy = (lon2 - lon1) * 54.6;
+    return Math.sqrt(dx * dx + dy * dy).toFixed(1);
   };
 
   return (
@@ -214,7 +306,7 @@ export default function DriverHomeScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {isOnline && !showTripRequest ? (
+      {isOnline && !currentRideRequest ? (
         <Animated.View style={[styles.searchingIndicator, searchingStyle]}>
           <View style={styles.searchingContent}>
             <View style={styles.pulseContainer}>
@@ -222,6 +314,9 @@ export default function DriverHomeScreen({ navigation }: Props) {
               <View style={[styles.searchingDot, { backgroundColor: theme.accent }]} />
             </View>
             <ThemedText type="h4">Searching for trips...</ThemedText>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+              {pendingRides.length > 0 ? `${pendingRides.length} pending` : "Waiting for riders"}
+            </ThemedText>
           </View>
         </Animated.View>
       ) : null}
@@ -273,77 +368,33 @@ export default function DriverHomeScreen({ navigation }: Props) {
               </ThemedText>
             </View>
             <View style={[styles.statCard, { backgroundColor: theme.backgroundSecondary }]}>
-              <Feather name="clock" size={18} color={theme.accent} />
-              <ThemedText type="h3">2.5h</ThemedText>
+              <Feather name="dollar-sign" size={18} color={theme.success} />
+              <ThemedText type="h3">${todayEarnings.toFixed(0)}</ThemedText>
               <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                Online
+                Earned
               </ThemedText>
             </View>
             <View style={[styles.statCard, { backgroundColor: theme.backgroundSecondary }]}>
-              <Feather name="trending-up" size={18} color={theme.success} />
-              <ThemedText type="h3">$12/h</ThemedText>
+              <Feather name="star" size={18} color={theme.accent} />
+              <ThemedText type="h3">{driverProfile?.driverRating || "5.0"}</ThemedText>
               <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                Rate
+                Rating
               </ThemedText>
             </View>
           </View>
 
-          {isOnline ? (
-            <View style={styles.suggestionsContainer}>
-              <ThemedText type="caption" style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-                SMART SUGGESTIONS
+          {!isOnline ? (
+            <View style={styles.offlineHint}>
+              <Feather name="info" size={16} color={theme.textSecondary} />
+              <ThemedText type="caption" style={{ color: theme.textSecondary, flex: 1 }}>
+                Toggle online to start receiving ride requests from nearby riders
               </ThemedText>
-              {ZONE_SUGGESTIONS.slice(0, 2).map((suggestion) => (
-                <Pressable
-                  key={suggestion.id}
-                  style={[styles.suggestionCard, { backgroundColor: theme.backgroundSecondary }]}
-                >
-                  <View
-                    style={[
-                      styles.suggestionIcon,
-                      {
-                        backgroundColor:
-                          suggestion.type === "hot"
-                            ? theme.error + "20"
-                            : suggestion.type === "surge"
-                            ? theme.accent + "20"
-                            : theme.success + "20",
-                      },
-                    ]}
-                  >
-                    <Feather
-                      name={
-                        suggestion.type === "hot"
-                          ? "zap"
-                          : suggestion.type === "surge"
-                          ? "trending-up"
-                          : "check-circle"
-                      }
-                      size={16}
-                      color={
-                        suggestion.type === "hot"
-                          ? theme.error
-                          : suggestion.type === "surge"
-                          ? theme.accent
-                          : theme.success
-                      }
-                    />
-                  </View>
-                  <View style={styles.suggestionText}>
-                    <ThemedText type="body">{suggestion.zone}</ThemedText>
-                    <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                      {suggestion.action}
-                    </ThemedText>
-                  </View>
-                  <Feather name="navigation" size={18} color={theme.accent} />
-                </Pressable>
-              ))}
             </View>
           ) : null}
         </LinearGradient>
       </Animated.View>
 
-      {showTripRequest ? (
+      {currentRideRequest ? (
         <Animated.View
           entering={SlideInUp.springify()}
           style={[styles.tripRequestOverlay, { paddingBottom: insets.bottom + Spacing.lg }]}
@@ -354,9 +405,9 @@ export default function DriverHomeScreen({ navigation }: Props) {
           >
             <View style={styles.tripRequestHeader}>
               <ThemedText type="h3">New Trip Request</ThemedText>
-              <View style={[styles.timerBadge, { backgroundColor: theme.accent }]}>
-                <ThemedText type="caption" style={{ color: "#000000", fontWeight: "600" }}>
-                  15s
+              <View style={[styles.tierBadge, { backgroundColor: theme.accent + "20" }]}>
+                <ThemedText type="caption" style={{ color: theme.accent, fontWeight: "600" }}>
+                  {currentRideRequest.vehicleTier.toUpperCase()}
                 </ThemedText>
               </View>
             </View>
@@ -366,41 +417,62 @@ export default function DriverHomeScreen({ navigation }: Props) {
                 <View style={[styles.locationDot, { backgroundColor: theme.accent }]} />
                 <View style={styles.locationText}>
                   <ThemedText type="caption" style={{ color: theme.textSecondary }}>PICKUP</ThemedText>
-                  <ThemedText type="body">123 Main Street</ThemedText>
+                  <ThemedText type="body" numberOfLines={1}>
+                    {currentRideRequest.pickupAddress}
+                  </ThemedText>
                 </View>
-                <ThemedText type="h4" style={{ color: theme.accent }}>0.5 mi</ThemedText>
+                {location ? (
+                  <ThemedText type="h4" style={{ color: theme.accent }}>
+                    {calculateDistance(
+                      location.coords.latitude,
+                      location.coords.longitude,
+                      parseFloat(currentRideRequest.pickupLatitude),
+                      parseFloat(currentRideRequest.pickupLongitude)
+                    )} mi
+                  </ThemedText>
+                ) : null}
               </View>
               <View style={[styles.locationLine, { backgroundColor: theme.textTertiary }]} />
               <View style={styles.tripLocation}>
                 <View style={[styles.locationDot, { backgroundColor: theme.text }]} />
                 <View style={styles.locationText}>
                   <ThemedText type="caption" style={{ color: theme.textSecondary }}>DROPOFF</ThemedText>
-                  <ThemedText type="body">456 Market Ave</ThemedText>
+                  <ThemedText type="body" numberOfLines={1}>
+                    {currentRideRequest.destinationAddress}
+                  </ThemedText>
                 </View>
-                <ThemedText type="h4">3.2 mi</ThemedText>
+                <ThemedText type="h4">{currentRideRequest.estimatedDistance} mi</ThemedText>
               </View>
             </View>
 
             <View style={styles.tripMeta}>
               <View style={styles.tripMetaItem}>
                 <Feather name="dollar-sign" size={18} color={theme.success} />
-                <ThemedText type="h3" style={{ color: theme.success }}>$18.50</ThemedText>
+                <ThemedText type="h3" style={{ color: theme.success }}>
+                  ${(Number(currentRideRequest.estimatedFare) * 0.8).toFixed(2)}
+                </ThemedText>
               </View>
               <View style={styles.tripMetaItem}>
                 <Feather name="clock" size={18} color={theme.textSecondary} />
-                <ThemedText type="body">~15 min</ThemedText>
+                <ThemedText type="body">~{currentRideRequest.estimatedDuration} min</ThemedText>
               </View>
-              <View style={styles.tripMetaItem}>
-                <Feather name="star" size={18} color={theme.accent} />
-                <ThemedText type="body">4.9</ThemedText>
-              </View>
+              {currentRideRequest.rider ? (
+                <View style={styles.tripMetaItem}>
+                  <Feather name="star" size={18} color={theme.accent} />
+                  <ThemedText type="body">{currentRideRequest.rider.rating || "5.0"}</ThemedText>
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.tripActions}>
               <Button variant="outline" onPress={handleDeclineTrip} style={styles.declineButton}>
                 Decline
               </Button>
-              <Button onPress={handleAcceptTrip} style={styles.acceptButton}>
+              <Button 
+                onPress={handleAcceptTrip} 
+                style={styles.acceptButton}
+                loading={isAccepting}
+              >
                 Accept
               </Button>
             </View>
@@ -469,7 +541,7 @@ const styles = StyleSheet.create({
   },
   searchingIndicator: {
     position: "absolute",
-    top: "40%",
+    top: "35%",
     left: 0,
     right: 0,
     alignItems: "center",
@@ -477,7 +549,7 @@ const styles = StyleSheet.create({
   },
   searchingContent: {
     alignItems: "center",
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
   pulseContainer: {
     width: 80,
@@ -554,33 +626,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
   },
-  suggestionsContainer: {
-    paddingHorizontal: Spacing.xl,
-  },
-  sectionTitle: {
-    marginBottom: Spacing.sm,
-    letterSpacing: 0.5,
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  suggestionCard: {
+  offlineHint: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.xl,
     padding: Spacing.md,
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
-  },
-  suggestionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  suggestionText: {
-    flex: 1,
-    gap: 2,
   },
   tripRequestOverlay: {
     position: "absolute",
@@ -600,7 +653,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.lg,
   },
-  timerBadge: {
+  tierBadge: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
