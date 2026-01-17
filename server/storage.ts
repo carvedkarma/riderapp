@@ -6,7 +6,7 @@ import {
   paymentMethods, type PaymentMethod, type InsertPaymentMethod,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, ne, isNotNull, sql } from "drizzle-orm";
+import { eq, desc, and, ne, isNotNull, or, inArray, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -26,11 +26,14 @@ export interface IStorage {
   
   getRides(userId: string): Promise<Ride[]>;
   getDriverRides(driverId: string): Promise<Ride[]>;
-  getPendingRides(): Promise<(Ride & { rider: User })[]>;
+  getPendingRidesForDriver(driverId: string): Promise<(Ride & { rider: User })[]>;
   getRide(id: string): Promise<Ride | undefined>;
   getRideWithDetails(id: string): Promise<(Ride & { rider: User; driver?: User }) | undefined>;
   createRide(ride: InsertRide): Promise<Ride>;
   updateRide(id: string, updates: Partial<Ride>): Promise<Ride | undefined>;
+  getAvailableDrivers(lat: number, lng: number, radiusMiles?: number): Promise<(DriverProfile & { user: User; distance: number })[]>;
+  isDriverAvailable(driverId: string): Promise<boolean>;
+  findClosestAvailableDriver(lat: number, lng: number, excludeDriverIds?: string[]): Promise<(DriverProfile & { user: User }) | null>;
   
   getPaymentMethods(userId: string): Promise<PaymentMethod[]>;
   createPaymentMethod(method: InsertPaymentMethod): Promise<PaymentMethod>;
@@ -133,17 +136,86 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(rides).where(eq(rides.driverId, driverId)).orderBy(desc(rides.createdAt));
   }
 
-  async getPendingRides(): Promise<(Ride & { rider: User })[]> {
+  async getPendingRidesForDriver(driverId: string): Promise<(Ride & { rider: User })[]> {
     const results = await db.select({
       ride: rides,
       rider: users,
     })
       .from(rides)
       .innerJoin(users, eq(rides.riderId, users.id))
-      .where(eq(rides.status, "pending"))
+      .where(and(
+        eq(rides.status, "pending"),
+        eq(rides.driverId, driverId)
+      ))
       .orderBy(desc(rides.createdAt));
     
     return results.map(r => ({ ...r.ride, rider: r.rider }));
+  }
+
+  async isDriverAvailable(driverId: string): Promise<boolean> {
+    const activeStatuses = ["pending", "driver_assigned", "driver_arriving", "in_progress"];
+    const [activeRide] = await db.select()
+      .from(rides)
+      .where(and(
+        eq(rides.driverId, driverId),
+        or(
+          eq(rides.status, "pending"),
+          eq(rides.status, "driver_assigned"),
+          eq(rides.status, "driver_arriving"),
+          eq(rides.status, "in_progress")
+        )
+      ))
+      .limit(1);
+    
+    return !activeRide;
+  }
+
+  async getAvailableDrivers(lat: number, lng: number, radiusMiles: number = 10): Promise<(DriverProfile & { user: User; distance: number })[]> {
+    const onlineDrivers = await db.select({
+      driverProfile: driverProfiles,
+      user: users,
+    })
+      .from(driverProfiles)
+      .innerJoin(users, eq(driverProfiles.userId, users.id))
+      .where(and(
+        eq(driverProfiles.isOnline, true),
+        isNotNull(driverProfiles.currentLatitude),
+        isNotNull(driverProfiles.currentLongitude)
+      ));
+    
+    const availableDriversWithDistance: (DriverProfile & { user: User; distance: number })[] = [];
+    
+    for (const driver of onlineDrivers) {
+      const isAvailable = await this.isDriverAvailable(driver.user.id);
+      if (!isAvailable) continue;
+      
+      if (!driver.driverProfile.currentLatitude || !driver.driverProfile.currentLongitude) continue;
+      
+      const dLat = Number(driver.driverProfile.currentLatitude) - lat;
+      const dLng = Number(driver.driverProfile.currentLongitude) - lng;
+      const distance = Math.sqrt(Math.pow(dLat * 69, 2) + Math.pow(dLng * 54.6, 2));
+      
+      if (distance <= radiusMiles) {
+        availableDriversWithDistance.push({
+          ...driver.driverProfile,
+          user: driver.user,
+          distance,
+        });
+      }
+    }
+    
+    return availableDriversWithDistance.sort((a, b) => a.distance - b.distance);
+  }
+
+  async findClosestAvailableDriver(lat: number, lng: number, excludeDriverIds: string[] = []): Promise<(DriverProfile & { user: User }) | null> {
+    const availableDrivers = await this.getAvailableDrivers(lat, lng, 20);
+    
+    const eligibleDriver = availableDrivers.find(d => !excludeDriverIds.includes(d.user.id));
+    
+    if (!eligibleDriver) return null;
+    
+    const { distance, ...driverWithoutDistance } = eligibleDriver;
+    return driverWithoutDistance;
   }
 
   async getRide(id: string): Promise<Ride | undefined> {

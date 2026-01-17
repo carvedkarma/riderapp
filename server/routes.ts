@@ -267,7 +267,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/rides/pending", async (req, res) => {
     try {
-      const rides = await storage.getPendingRides();
+      const driverId = req.query.driverId as string;
+      if (!driverId) {
+        return res.status(400).json({ error: "driverId query parameter required" });
+      }
+      const rides = await storage.getPendingRidesForDriver(driverId);
       res.json(rides);
     } catch (error) {
       res.status(500).json({ error: "Failed to get pending rides" });
@@ -292,8 +296,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!parsed.success) {
         return res.status(400).json({ error: "Invalid ride data", details: parsed.error.errors });
       }
-      const ride = await storage.createRide(parsed.data);
-      res.status(201).json(ride);
+      
+      const pickupLat = Number(parsed.data.pickupLatitude);
+      const pickupLng = Number(parsed.data.pickupLongitude);
+      
+      const closestDriver = await storage.findClosestAvailableDriver(pickupLat, pickupLng);
+      
+      const rideData = {
+        ...parsed.data,
+        driverId: closestDriver?.user.id || null,
+      };
+      
+      const ride = await storage.createRide(rideData);
+      
+      res.status(201).json({ 
+        ride, 
+        driverAssigned: !!closestDriver,
+        message: closestDriver ? "Driver found and notified" : "No available drivers nearby. Please try again." 
+      });
     } catch (error) {
       console.error("Create ride error:", error);
       res.status(500).json({ error: "Failed to create ride" });
@@ -334,6 +354,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(ride);
     } catch (error) {
       res.status(500).json({ error: "Failed to accept ride" });
+    }
+  });
+
+  app.post("/api/rides/:id/decline", async (req, res) => {
+    try {
+      const { driverId } = req.body;
+      
+      const existingRide = await storage.getRide(req.params.id);
+      if (!existingRide) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      if (existingRide.status !== "pending" || existingRide.driverId !== driverId) {
+        return res.status(400).json({ error: "Cannot decline this ride" });
+      }
+      
+      const pickupLat = Number(existingRide.pickupLatitude);
+      const pickupLng = Number(existingRide.pickupLongitude);
+      
+      const nextDriver = await storage.findClosestAvailableDriver(pickupLat, pickupLng, [driverId]);
+      
+      if (nextDriver) {
+        const ride = await storage.updateRide(req.params.id, {
+          driverId: nextDriver.user.id,
+        });
+        res.json({ ride, reassigned: true, message: "Ride reassigned to another driver" });
+      } else {
+        await storage.updateRide(req.params.id, {
+          status: "cancelled",
+          cancelledAt: new Date(),
+        });
+        res.json({ reassigned: false, message: "No other drivers available. Ride cancelled." });
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Failed to decline ride" });
     }
   });
 
