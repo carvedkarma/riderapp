@@ -88,8 +88,8 @@ export default function DriverHomeScreen({ navigation }: Props) {
   const searchingOpacity = useSharedValue(0);
 
   const { data: pendingRides = [], refetch: refetchRides } = useQuery<RideRequest[]>({
-    queryKey: ["/api/rides/pending"],
-    enabled: isOnline && !currentRideRequest,
+    queryKey: [`/api/rides/pending?driverId=${user?.id}`],
+    enabled: isOnline && !currentRideRequest && !!user?.id,
     refetchInterval: isOnline && !currentRideRequest ? 3000 : false,
   });
 
@@ -218,7 +218,7 @@ export default function DriverHomeScreen({ navigation }: Props) {
       
       if (response.ok) {
         setCurrentRideRequest(null);
-        queryClient.invalidateQueries({ queryKey: ["/api/rides/pending"] });
+        queryClient.invalidateQueries({ queryKey: [`/api/rides/pending?driverId=${user?.id}`] });
         navigation.navigate("DriverActiveTrip", { tripId: currentRideRequest.id });
       } else {
         const data = await response.json();
@@ -232,11 +232,28 @@ export default function DriverHomeScreen({ navigation }: Props) {
     }
   };
 
-  const handleDeclineTrip = () => {
+  const handleDeclineTrip = async () => {
+    if (!currentRideRequest || !user?.id) return;
+    
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    
+    try {
+      await fetch(
+        new URL(`/api/rides/${currentRideRequest.id}/decline`, getApiUrl()).toString(),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ driverId: user.id }),
+        }
+      );
+    } catch (error) {
+      console.error("Failed to decline ride:", error);
+    }
+    
     setCurrentRideRequest(null);
+    queryClient.invalidateQueries({ queryKey: [`/api/rides/pending?driverId=${user?.id}`] });
   };
 
   const handleEarningsPress = () => {
