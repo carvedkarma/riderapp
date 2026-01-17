@@ -10,6 +10,7 @@ import DriverProfileScreen from "@/screens/driver/DriverProfileScreen";
 
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuthStore } from "@/stores/authStore";
 
 export type DriverStackParamList = {
   DriverOnboarding: undefined;
@@ -30,10 +31,14 @@ const Stack = createNativeStackNavigator<DriverStackParamList>();
 export default function DriverStackNavigator() {
   const screenOptions = useScreenOptions();
   const { theme } = useTheme();
+  const { driverProfile } = useAuthStore();
+
+  // If driver already has a profile, skip onboarding
+  const initialRoute = driverProfile ? "DriverHome" : "DriverOnboarding";
 
   return (
     <Stack.Navigator
-      initialRouteName="DriverOnboarding"
+      initialRouteName={initialRoute}
       screenOptions={{
         ...screenOptions,
         headerStyle: {
