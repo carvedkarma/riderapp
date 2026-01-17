@@ -1,10 +1,11 @@
 import React from "react";
-import { View } from "react-native";
 
 import RiderStackNavigator from "./RiderStackNavigator";
 import DriverStackNavigator from "./DriverStackNavigator";
+import AuthStackNavigator from "./AuthStackNavigator";
 import RoleSelectorScreen from "@/screens/RoleSelectorScreen";
 import { useAppStore } from "@/stores/appStore";
+import { useAuthStore } from "@/stores/authStore";
 
 export type RootStackParamList = {
   RoleSelector: undefined;
@@ -14,6 +15,11 @@ export type RootStackParamList = {
 
 export default function RootStackNavigator() {
   const { mode, debugMode } = useAppStore();
+  const { isAuthenticated } = useAuthStore();
+
+  if (!isAuthenticated) {
+    return <AuthStackNavigator />;
+  }
 
   if (debugMode) {
     return <RoleSelectorScreen />;

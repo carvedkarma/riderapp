@@ -1,15 +1,17 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Platform, Image } from "react-native";
+import { StyleSheet, View, Platform, TextInput, ScrollView, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import Animated, { FadeIn, FadeInRight, SlideInRight } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
+import { GlassCard } from "@/components/GlassCard";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuthStore } from "@/stores/authStore";
 import { Spacing, BorderRadius } from "@/constants/theme";
+import { getApiUrl } from "@/lib/query-client";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { DriverStackParamList } from "@/navigation/DriverStackNavigator";
 
@@ -22,188 +24,224 @@ interface Props {
   navigation: DriverOnboardingScreenNavigationProp;
 }
 
-interface OnboardingStep {
-  id: string;
-  title: string;
-  description: string;
-  icon: keyof typeof Feather.glyphMap;
-  action?: () => Promise<boolean>;
-  actionLabel?: string;
-}
+const vehicleTiers = [
+  { id: "economy", label: "Economy", icon: "truck" as const },
+  { id: "comfort", label: "Comfort", icon: "truck" as const },
+  { id: "premium", label: "Premium", icon: "truck" as const },
+  { id: "luxury", label: "Luxury", icon: "award" as const },
+] as const;
 
 export default function DriverOnboardingScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const { user, setDriverProfile } = useAuthStore();
+  
+  const [vehicleMake, setVehicleMake] = useState("");
+  const [vehicleModel, setVehicleModel] = useState("");
+  const [vehicleYear, setVehicleYear] = useState("");
+  const [vehicleColor, setVehicleColor] = useState("");
+  const [vehiclePlate, setVehiclePlate] = useState("");
+  const [selectedTier, setSelectedTier] = useState<string>("economy");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const steps: OnboardingStep[] = [
-    {
-      id: "welcome",
-      title: "Welcome, Driver!",
-      description: "Let's get you set up to start earning with RideX. This will only take a minute.",
-      icon: "truck",
-    },
-    {
-      id: "location",
-      title: "Enable Location",
-      description: "We need your location to match you with nearby riders and provide navigation.",
-      icon: "map-pin",
-      action: async () => {
-        try {
-          if (Platform.OS === "web") {
-            return true;
-          }
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          return status === "granted";
-        } catch {
-          return true;
-        }
-      },
-      actionLabel: "Enable Location",
-    },
-    {
-      id: "profile",
-      title: "Your Profile",
-      description: "Your profile helps riders know who's picking them up. You can update this later.",
-      icon: "user",
-    },
-    {
-      id: "vehicle",
-      title: "Your Vehicle",
-      description: "Add your vehicle details. This helps riders identify your car when you arrive.",
-      icon: "truck",
-    },
-    {
-      id: "ready",
-      title: "You're All Set!",
-      description: "Start accepting rides and earning money on your own schedule.",
-      icon: "check-circle",
-    },
-  ];
+  const handleRegister = async () => {
+    if (!vehicleMake.trim() || !vehicleModel.trim() || !vehicleColor.trim() || !vehiclePlate.trim()) {
+      setError("Please fill in all required fields");
+      return;
+    }
 
-  const handleAction = async () => {
+    if (!user) {
+      setError("Please log in first");
+      return;
+    }
+
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
 
-    const step = steps[currentStep];
-    
-    if (step.action) {
-      setIsLoading(true);
-      const success = await step.action();
-      setIsLoading(false);
-      
-      if (success) {
-        setCompletedSteps(prev => new Set([...prev, currentStep]));
+    setIsLoading(true);
+    setError("");
+
+    try {
+      if (Platform.OS !== "web") {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setError("Location permission is required for driving");
+          setIsLoading(false);
+          return;
+        }
       }
-    } else {
-      setCompletedSteps(prev => new Set([...prev, currentStep]));
-    }
 
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
+      const response = await fetch(new URL("/api/drivers/profile", getApiUrl()).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          vehicleMake: vehicleMake.trim(),
+          vehicleModel: vehicleModel.trim(),
+          vehicleYear: vehicleYear ? parseInt(vehicleYear) : null,
+          vehicleColor: vehicleColor.trim(),
+          vehiclePlate: vehiclePlate.trim().toUpperCase(),
+          vehicleTier: selectedTier,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Failed to register as driver");
+        return;
+      }
+
+      setDriverProfile(data);
       navigation.replace("DriverHome");
+    } catch (err) {
+      setError("Network error. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
-
-  const handleSkip = () => {
-    if (Platform.OS !== "web") {
-      Haptics.selectionAsync();
-    }
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const step = steps[currentStep];
-  const isLastStep = currentStep === steps.length - 1;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
-        <View style={styles.progressContainer}>
-          {steps.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.progressDot,
-                {
-                  backgroundColor:
-                    index === currentStep
-                      ? theme.accent
-                      : index < currentStep
-                      ? theme.accent + "80"
-                      : theme.backgroundTertiary,
-                },
-              ]}
-            />
-          ))}
-        </View>
-      </View>
-
-      <Animated.View 
-        key={currentStep}
-        entering={SlideInRight.springify().damping(20)}
-        style={styles.content}
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + Spacing.xl, paddingBottom: insets.bottom + Spacing.xl },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.iconContainer, { backgroundColor: theme.accent + "20" }]}>
-          <Feather name={step.icon} size={48} color={theme.accent} />
+        <View style={styles.header}>
+          <View style={[styles.iconContainer, { backgroundColor: theme.accent + "20" }]}>
+            <Feather name="truck" size={32} color={theme.accent} />
+          </View>
+          <ThemedText type="h2">Become a Driver</ThemedText>
+          <ThemedText type="body" style={[styles.subtitle, { color: theme.textSecondary }]}>
+            Register your vehicle to start earning with RideX
+          </ThemedText>
         </View>
 
-        <ThemedText type="h1" style={styles.title}>
-          {step.title}
-        </ThemedText>
-
-        <ThemedText type="body" style={[styles.description, { color: theme.textSecondary }]}>
-          {step.description}
-        </ThemedText>
-
-        {step.id === "profile" ? (
-          <View style={styles.mockProfile}>
-            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.backgroundSecondary }]}>
-              <Feather name="user" size={40} color={theme.textTertiary} />
+        <GlassCard style={styles.formCard}>
+          {error ? (
+            <View style={[styles.errorContainer, { backgroundColor: theme.error + "20" }]}>
+              <Feather name="alert-circle" size={16} color={theme.error} />
+              <ThemedText type="caption" style={{ color: theme.error, flex: 1 }}>
+                {error}
+              </ThemedText>
             </View>
-            <View style={[styles.mockInput, { backgroundColor: theme.backgroundSecondary }]}>
-              <ThemedText type="body" style={{ color: theme.textTertiary }}>John Driver</ThemedText>
+          ) : null}
+
+          <ThemedText type="caption" style={[styles.sectionLabel, { color: theme.textSecondary }]}>
+            VEHICLE DETAILS
+          </ThemedText>
+
+          <View style={styles.row}>
+            <View style={[styles.inputContainer, { backgroundColor: theme.backgroundSecondary, flex: 1 }]}>
+              <TextInput
+                style={[styles.input, { color: theme.text }]}
+                placeholder="Make *"
+                placeholderTextColor={theme.textTertiary}
+                value={vehicleMake}
+                onChangeText={setVehicleMake}
+                autoCapitalize="words"
+              />
             </View>
-            <View style={[styles.mockInput, { backgroundColor: theme.backgroundSecondary }]}>
-              <ThemedText type="body" style={{ color: theme.textTertiary }}>+1 (555) 123-4567</ThemedText>
+            <View style={[styles.inputContainer, { backgroundColor: theme.backgroundSecondary, flex: 1 }]}>
+              <TextInput
+                style={[styles.input, { color: theme.text }]}
+                placeholder="Model *"
+                placeholderTextColor={theme.textTertiary}
+                value={vehicleModel}
+                onChangeText={setVehicleModel}
+                autoCapitalize="words"
+              />
             </View>
           </View>
-        ) : null}
 
-        {step.id === "vehicle" ? (
-          <View style={styles.mockVehicle}>
-            <View style={[styles.vehicleCard, { backgroundColor: theme.backgroundSecondary }]}>
-              <View style={[styles.vehicleIcon, { backgroundColor: theme.accent + "20" }]}>
-                <Feather name="truck" size={24} color={theme.accent} />
-              </View>
-              <View style={styles.vehicleInfo}>
-                <ThemedText type="h4">Toyota Camry</ThemedText>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  2022 • Silver • ABC 1234
+          <View style={styles.row}>
+            <View style={[styles.inputContainer, { backgroundColor: theme.backgroundSecondary, flex: 1 }]}>
+              <TextInput
+                style={[styles.input, { color: theme.text }]}
+                placeholder="Year"
+                placeholderTextColor={theme.textTertiary}
+                value={vehicleYear}
+                onChangeText={setVehicleYear}
+                keyboardType="numeric"
+                maxLength={4}
+              />
+            </View>
+            <View style={[styles.inputContainer, { backgroundColor: theme.backgroundSecondary, flex: 1 }]}>
+              <TextInput
+                style={[styles.input, { color: theme.text }]}
+                placeholder="Color *"
+                placeholderTextColor={theme.textTertiary}
+                value={vehicleColor}
+                onChangeText={setVehicleColor}
+                autoCapitalize="words"
+              />
+            </View>
+          </View>
+
+          <View style={[styles.inputContainer, { backgroundColor: theme.backgroundSecondary }]}>
+            <TextInput
+              style={[styles.input, { color: theme.text }]}
+              placeholder="License Plate *"
+              placeholderTextColor={theme.textTertiary}
+              value={vehiclePlate}
+              onChangeText={setVehiclePlate}
+              autoCapitalize="characters"
+            />
+          </View>
+
+          <ThemedText type="caption" style={[styles.sectionLabel, { color: theme.textSecondary, marginTop: Spacing.lg }]}>
+            VEHICLE TIER
+          </ThemedText>
+
+          <View style={styles.tierGrid}>
+            {vehicleTiers.map((tier) => (
+              <Pressable
+                key={tier.id}
+                onPress={() => {
+                  if (Platform.OS !== "web") Haptics.selectionAsync();
+                  setSelectedTier(tier.id);
+                }}
+                style={[
+                  styles.tierCard,
+                  {
+                    backgroundColor: selectedTier === tier.id ? theme.accent + "20" : theme.backgroundSecondary,
+                    borderColor: selectedTier === tier.id ? theme.accent : "transparent",
+                  },
+                ]}
+              >
+                <Feather
+                  name={tier.icon}
+                  size={20}
+                  color={selectedTier === tier.id ? theme.accent : theme.textSecondary}
+                />
+                <ThemedText
+                  type="caption"
+                  style={{ color: selectedTier === tier.id ? theme.accent : theme.text }}
+                >
+                  {tier.label}
                 </ThemedText>
-              </View>
-              <Feather name="check-circle" size={20} color={theme.success} />
-            </View>
+              </Pressable>
+            ))}
           </View>
-        ) : null}
-      </Animated.View>
+        </GlassCard>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.xl }]}>
-        <Button onPress={handleAction} fullWidth loading={isLoading}>
-          {isLastStep ? "Start Driving" : step.actionLabel || "Continue"}
+        <View style={styles.infoCard}>
+          <Feather name="info" size={16} color={theme.textSecondary} />
+          <ThemedText type="caption" style={{ color: theme.textSecondary, flex: 1 }}>
+            Your vehicle will be reviewed before you can start accepting rides. This usually takes less than 24 hours.
+          </ThemedText>
+        </View>
+
+        <Button onPress={handleRegister} fullWidth loading={isLoading}>
+          Register Vehicle
         </Button>
-
-        {!isLastStep && currentStep > 0 ? (
-          <Button variant="ghost" onPress={handleSkip}>
-            Skip for now
-          </Button>
-        ) : null}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -212,87 +250,77 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: Spacing.xl,
+  content: {
+    paddingHorizontal: Spacing.lg,
   },
-  progressContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
+  header: {
+    alignItems: "center",
+    marginBottom: Spacing.xl,
     gap: Spacing.sm,
   },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing["4xl"],
-    alignItems: "center",
-  },
   iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 30,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing["2xl"],
-  },
-  title: {
-    textAlign: "center",
-    marginBottom: Spacing.md,
-  },
-  description: {
-    textAlign: "center",
-    maxWidth: 300,
-    lineHeight: 24,
-  },
-  mockProfile: {
-    width: "100%",
-    marginTop: Spacing["2xl"],
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.sm,
   },
-  mockInput: {
-    width: "100%",
-    height: 52,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    justifyContent: "center",
+  subtitle: {
+    textAlign: "center",
   },
-  mockVehicle: {
-    width: "100%",
-    marginTop: Spacing["2xl"],
+  formCard: {
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
   },
-  vehicleCard: {
+  errorContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.lg,
   },
-  vehicleIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+  sectionLabel: {
+    marginBottom: Spacing.sm,
+    letterSpacing: 1,
+  },
+  row: {
+    flexDirection: "row",
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  inputContainer: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+  },
+  input: {
+    fontSize: 16,
+  },
+  tierGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  tierCard: {
+    flex: 1,
+    minWidth: "45%",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
   },
-  vehicleInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  footer: {
-    paddingHorizontal: Spacing.xl,
-    gap: Spacing.md,
+  infoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.sm,
   },
 });
