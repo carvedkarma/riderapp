@@ -4,11 +4,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 
 import { MapViewWrapper, Marker, Polyline } from "@/components/MapViewWrapper";
 import { VehicleCard, VehicleTier } from "@/components/VehicleCard";
 import { Button } from "@/components/Button";
 import { ThemedText } from "@/components/ThemedText";
+import { FareLockTimer } from "@/components/FareLockTimer";
+import { RidePreferences } from "@/components/RidePreferences";
+import { DriverEarningsBadge } from "@/components/DriverEarningsBadge";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -32,7 +36,7 @@ interface Props {
   route: RideConfirmationScreenRouteProp;
 }
 
-const VEHICLE_TIERS: VehicleTier[] = [
+const VEHICLE_TIERS: (VehicleTier & { driverEarnings: string })[] = [
   {
     id: "economy",
     name: "Economy",
@@ -41,6 +45,7 @@ const VEHICLE_TIERS: VehicleTier[] = [
     price: "$12.50",
     capacity: 4,
     image: require("../../assets/images/vehicle-economy.png"),
+    driverEarnings: "$9.80",
   },
   {
     id: "comfort",
@@ -50,6 +55,7 @@ const VEHICLE_TIERS: VehicleTier[] = [
     price: "$18.75",
     capacity: 4,
     image: require("../../assets/images/vehicle-comfort.png"),
+    driverEarnings: "$14.50",
   },
   {
     id: "premium",
@@ -59,6 +65,7 @@ const VEHICLE_TIERS: VehicleTier[] = [
     price: "$28.00",
     capacity: 4,
     image: require("../../assets/images/vehicle-premium.png"),
+    driverEarnings: "$22.40",
   },
   {
     id: "luxury",
@@ -68,6 +75,7 @@ const VEHICLE_TIERS: VehicleTier[] = [
     price: "$45.00",
     capacity: 4,
     image: require("../../assets/images/vehicle-luxury.png"),
+    driverEarnings: "$36.00",
   },
 ];
 
@@ -80,6 +88,9 @@ export default function RideConfirmationScreen({ navigation, route }: Props) {
   const { pickup, destination } = route.params;
   const [selectedVehicle, setSelectedVehicle] = useState<string>("economy");
   const [isRequesting, setIsRequesting] = useState(false);
+  const [showPreferences, setShowPreferences] = useState(false);
+
+  const selectedTier = VEHICLE_TIERS.find((v) => v.id === selectedVehicle);
 
   const handleVehicleSelect = (vehicleId: string) => {
     if (Platform.OS !== "web") {
@@ -159,52 +170,81 @@ export default function RideConfirmationScreen({ navigation, route }: Props) {
       </View>
 
       <View style={[styles.bottomSheet, { backgroundColor: theme.backgroundRoot }]}>
-        <View style={styles.routeSummary}>
-          <View style={styles.routePoint}>
-            <View style={[styles.routeDot, { backgroundColor: theme.accent }]} />
-            <ThemedText type="small" numberOfLines={1} style={styles.routeText}>
-              {pickup.address}
-            </ThemedText>
-          </View>
-          <View style={styles.routePoint}>
-            <View style={[styles.routeSquare, { backgroundColor: theme.text }]} />
-            <ThemedText type="small" numberOfLines={1} style={styles.routeText}>
-              {destination.address}
-            </ThemedText>
-          </View>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.vehicleList}
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
         >
-          {VEHICLE_TIERS.map((vehicle) => (
-            <View key={vehicle.id} style={styles.vehicleCardWrapper}>
-              <VehicleCard
-                vehicle={vehicle}
-                selected={selectedVehicle === vehicle.id}
-                onPress={() => handleVehicleSelect(vehicle.id)}
-              />
+          <Animated.View entering={FadeInUp.delay(100).springify()}>
+            <View style={styles.routeSummary}>
+              <View style={styles.routePoint}>
+                <View style={[styles.routeDot, { backgroundColor: theme.accent }]} />
+                <ThemedText type="small" numberOfLines={1} style={styles.routeText}>
+                  {pickup.address}
+                </ThemedText>
+              </View>
+              <View style={styles.routePoint}>
+                <View style={[styles.routeSquare, { backgroundColor: theme.text }]} />
+                <ThemedText type="small" numberOfLines={1} style={styles.routeText}>
+                  {destination.address}
+                </ThemedText>
+              </View>
             </View>
-          ))}
+          </Animated.View>
+
+          <Animated.View entering={FadeInUp.delay(150).springify()}>
+            <FareLockTimer initialSeconds={120} onExpire={() => {}} />
+          </Animated.View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.vehicleList}
+          >
+            {VEHICLE_TIERS.map((vehicle, index) => (
+              <Animated.View 
+                key={vehicle.id} 
+                style={styles.vehicleCardWrapper}
+                entering={FadeInDown.delay(200 + index * 50).springify()}
+              >
+                <VehicleCard
+                  vehicle={vehicle}
+                  selected={selectedVehicle === vehicle.id}
+                  onPress={() => handleVehicleSelect(vehicle.id)}
+                />
+              </Animated.View>
+            ))}
+          </ScrollView>
+
+          {selectedTier ? (
+            <Animated.View entering={FadeInUp.delay(350).springify()}>
+              <DriverEarningsBadge earnings={selectedTier.driverEarnings} />
+            </Animated.View>
+          ) : null}
+
+          <RidePreferences onPreferencesChange={() => {}} />
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.lg }]}>
           <View style={styles.priceBreakdown}>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              Estimated fare
-            </ThemedText>
-            <ThemedText type="h2">
-              {VEHICLE_TIERS.find((v) => v.id === selectedVehicle)?.price}
-            </ThemedText>
+            <View>
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                Estimated fare
+              </ThemedText>
+              <ThemedText type="h2">{selectedTier?.price}</ThemedText>
+            </View>
+            <View style={styles.etaInfo}>
+              <Feather name="clock" size={14} color={theme.textSecondary} />
+              <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                {selectedTier?.eta}
+              </ThemedText>
+            </View>
           </View>
           <Button
             onPress={handleRequestRide}
             loading={isRequesting}
             style={styles.requestButton}
           >
-            Request {VEHICLE_TIERS.find((v) => v.id === selectedVehicle)?.name}
+            Request {selectedTier?.name}
           </Button>
         </View>
       </View>
@@ -217,7 +257,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapContainer: {
-    height: "40%",
+    height: "35%",
   },
   map: {
     ...StyleSheet.absoluteFillObject,
@@ -243,12 +283,14 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
     marginTop: -Spacing.xl,
-    paddingTop: Spacing.xl,
     ...Shadows.large,
   },
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.xl,
+    gap: Spacing.lg,
+  },
   routeSummary: {
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.lg,
     gap: Spacing.sm,
   },
   routePoint: {
@@ -270,21 +312,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   vehicleList: {
-    paddingHorizontal: Spacing.lg,
     gap: Spacing.md,
+    paddingRight: Spacing.lg,
   },
   vehicleCardWrapper: {
-    width: width * 0.75,
+    width: width * 0.72,
   },
   footer: {
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
     gap: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
   },
   priceBreakdown: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  etaInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
   },
   requestButton: {
     width: "100%",

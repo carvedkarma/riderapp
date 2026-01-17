@@ -1,19 +1,23 @@
-import React, { useState } from "react";
-import { StyleSheet, View, Image, Pressable, Platform } from "react-native";
+import React, { useState, useEffect } from "react";
+import { StyleSheet, View, Image, Pressable, Platform, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, {
-  useAnimatedStyle,
   useSharedValue,
+  useAnimatedStyle,
   withSpring,
   withSequence,
-  runOnJS,
+  withDelay,
+  FadeInUp,
+  FadeInDown,
+  ZoomIn,
 } from "react-native-reanimated";
 
 import { Button } from "@/components/Button";
 import { ThemedText } from "@/components/ThemedText";
 import { GlassCard } from "@/components/GlassCard";
+import { TipSlider } from "@/components/TipSlider";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -32,34 +36,35 @@ interface Props {
   route: RideCompleteScreenRouteProp;
 }
 
-const TIP_OPTIONS = [
-  { id: "none", label: "No tip", amount: 0 },
-  { id: "small", label: "$2", amount: 2 },
-  { id: "medium", label: "$5", amount: 5 },
-  { id: "large", label: "$10", amount: 10 },
-];
-
 export default function RideCompleteScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { fare, driver } = route.params;
 
   const [rating, setRating] = useState(0);
-  const [selectedTip, setSelectedTip] = useState<string | null>(null);
+  const [tip, setTip] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const checkScale = useSharedValue(0);
+
+  useEffect(() => {
+    checkScale.value = withDelay(300, withSpring(1, { damping: 12 }));
+    if (Platform.OS !== "web") {
+      setTimeout(() => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }, 300);
+    }
+  }, []);
+
+  const checkStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: checkScale.value }],
+  }));
 
   const handleRating = (stars: number) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     setRating(stars);
-  };
-
-  const handleTipSelect = (tipId: string) => {
-    if (Platform.OS !== "web") {
-      Haptics.selectionAsync();
-    }
-    setSelectedTip(tipId);
   };
 
   const handleSubmit = async () => {
@@ -74,92 +79,129 @@ export default function RideCompleteScreen({ navigation, route }: Props) {
     }, 1000);
   };
 
+  const baseFare = parseFloat(fare.replace("$", ""));
+  const total = baseFare + tip;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      <View style={[styles.content, { paddingTop: insets.top + Spacing["3xl"] }]}>
+      <ScrollView 
+        contentContainerStyle={[
+          styles.content, 
+          { paddingTop: insets.top + Spacing["3xl"], paddingBottom: Spacing["3xl"] }
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
-          <View style={[styles.checkmark, { backgroundColor: theme.success }]}>
+          <Animated.View style={[styles.checkmark, { backgroundColor: theme.success }, checkStyle]}>
             <Feather name="check" size={32} color="#FFFFFF" />
-          </View>
-          <ThemedText type="hero" style={styles.title}>
-            Ride Complete
-          </ThemedText>
-          <ThemedText type="h1" style={{ color: theme.accent }}>
-            {fare}
-          </ThemedText>
+          </Animated.View>
+          <Animated.View entering={FadeInUp.delay(400).springify()}>
+            <ThemedText type="hero" style={styles.title}>
+              Ride Complete
+            </ThemedText>
+          </Animated.View>
+          <Animated.View entering={FadeInUp.delay(500).springify()}>
+            <ThemedText type="h1" style={{ color: theme.accent }}>
+              ${total.toFixed(2)}
+            </ThemedText>
+          </Animated.View>
         </View>
 
-        <GlassCard style={styles.driverCard}>
-          <Image
-            source={require("../../assets/images/avatar-default.png")}
-            style={styles.driverAvatar}
-          />
-          <View style={styles.driverInfo}>
-            <ThemedText type="h3">{driver.name}</ThemedText>
-            <View style={styles.vehicleInfo}>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                {driver.vehicleColor} {driver.vehicleMake} {driver.vehicleModel}
-              </ThemedText>
+        <Animated.View entering={FadeInUp.delay(600).springify()}>
+          <GlassCard style={styles.driverCard}>
+            <View style={styles.driverRow}>
+              <Image
+                source={require("../../assets/images/avatar-default.png")}
+                style={styles.driverAvatar}
+              />
+              <View style={styles.driverInfo}>
+                <ThemedText type="h3">{driver.name}</ThemedText>
+                <View style={styles.vehicleInfo}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                    {driver.vehicleColor} {driver.vehicleMake} {driver.vehicleModel}
+                  </ThemedText>
+                </View>
+              </View>
+              <View style={[styles.ratingBadge, { backgroundColor: theme.accentLight }]}>
+                <Feather name="star" size={12} color={theme.accent} />
+                <ThemedText type="h4" style={{ color: theme.accent }}>
+                  {driver.rating}
+                </ThemedText>
+              </View>
             </View>
-          </View>
-        </GlassCard>
+          </GlassCard>
+        </Animated.View>
 
-        <View style={styles.ratingSection}>
+        <Animated.View 
+          entering={FadeInUp.delay(700).springify()}
+          style={styles.ratingSection}
+        >
           <ThemedText type="h3" style={styles.sectionTitle}>
             How was your ride?
           </ThemedText>
           <View style={styles.starsContainer}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Pressable
+            {[1, 2, 3, 4, 5].map((star, index) => (
+              <Animated.View
                 key={star}
-                onPress={() => handleRating(star)}
-                style={styles.starButton}
+                entering={ZoomIn.delay(800 + index * 50).springify()}
               >
-                <Feather
-                  name="star"
-                  size={40}
-                  color={star <= rating ? theme.accent : theme.textTertiary}
-                  style={star <= rating ? styles.filledStar : undefined}
-                />
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.tipSection}>
-          <ThemedText type="h3" style={styles.sectionTitle}>
-            Add a tip for {driver.name.split(" ")[0]}
-          </ThemedText>
-          <View style={styles.tipOptions}>
-            {TIP_OPTIONS.map((tip) => (
-              <Pressable
-                key={tip.id}
-                onPress={() => handleTipSelect(tip.id)}
-                style={[
-                  styles.tipButton,
-                  {
-                    backgroundColor:
-                      selectedTip === tip.id
-                        ? theme.accentLight
-                        : theme.backgroundDefault,
-                    borderColor:
-                      selectedTip === tip.id ? theme.accent : "transparent",
-                  },
-                ]}
-              >
-                <ThemedText
-                  type={selectedTip === tip.id ? "h4" : "body"}
-                  style={{
-                    color: selectedTip === tip.id ? theme.accent : theme.text,
-                  }}
+                <Pressable
+                  onPress={() => handleRating(star)}
+                  style={styles.starButton}
                 >
-                  {tip.label}
-                </ThemedText>
-              </Pressable>
+                  <Feather
+                    name={star <= rating ? "star" : "star"}
+                    size={40}
+                    color={star <= rating ? theme.accent : theme.textTertiary}
+                  />
+                </Pressable>
+              </Animated.View>
             ))}
           </View>
-        </View>
-      </View>
+          {rating > 0 ? (
+            <Animated.View entering={FadeInUp.springify()}>
+              <ThemedText type="caption" style={{ color: theme.textSecondary, textAlign: "center" }}>
+                {rating === 5 ? "Excellent!" : rating >= 4 ? "Great ride!" : rating >= 3 ? "Good" : "We're sorry to hear that"}
+              </ThemedText>
+            </Animated.View>
+          ) : null}
+        </Animated.View>
+
+        <Animated.View entering={FadeInUp.delay(900).springify()}>
+          <TipSlider
+            driverName={driver.name}
+            baseFare={baseFare}
+            onTipChange={setTip}
+          />
+        </Animated.View>
+
+        <Animated.View 
+          entering={FadeInUp.delay(1000).springify()}
+          style={[styles.fareBreakdown, { backgroundColor: theme.backgroundDefault }]}
+        >
+          <View style={styles.fareRow}>
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              Ride fare
+            </ThemedText>
+            <ThemedText type="small">{fare}</ThemedText>
+          </View>
+          {tip > 0 ? (
+            <View style={styles.fareRow}>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                Tip
+              </ThemedText>
+              <ThemedText type="small">${tip.toFixed(2)}</ThemedText>
+            </View>
+          ) : null}
+          <View style={[styles.fareDivider, { backgroundColor: theme.backgroundSecondary }]} />
+          <View style={styles.fareRow}>
+            <ThemedText type="h4">Total</ThemedText>
+            <ThemedText type="h3" style={{ color: theme.accent }}>
+              ${total.toFixed(2)}
+            </ThemedText>
+          </View>
+        </Animated.View>
+      </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.lg }]}>
         <Button
@@ -180,29 +222,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
     paddingHorizontal: Spacing.xl,
-    gap: Spacing["2xl"],
+    gap: Spacing.xl,
   },
   header: {
     alignItems: "center",
     gap: Spacing.lg,
   },
   checkmark: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: "center",
     justifyContent: "center",
-    ...Shadows.medium,
+    ...Shadows.large,
   },
   title: {
     textAlign: "center",
   },
   driverCard: {
+    padding: Spacing.lg,
+  },
+  driverRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
   driverAvatar: {
     width: 56,
@@ -217,6 +261,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  ratingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.xs,
+  },
   ratingSection: {
     alignItems: "center",
     gap: Spacing.lg,
@@ -226,33 +278,29 @@ const styles = StyleSheet.create({
   },
   starsContainer: {
     flexDirection: "row",
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   starButton: {
     padding: Spacing.xs,
   },
-  filledStar: {
-    textShadowColor: "rgba(201, 170, 112, 0.5)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 8,
-  },
-  tipSection: {
-    gap: Spacing.lg,
-  },
-  tipOptions: {
-    flexDirection: "row",
+  fareBreakdown: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
     gap: Spacing.sm,
   },
-  tipButton: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
+  fareRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
+  },
+  fareDivider: {
+    height: 1,
+    marginVertical: Spacing.xs,
   },
   footer: {
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
   },
 });

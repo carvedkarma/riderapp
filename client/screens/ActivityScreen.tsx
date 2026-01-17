@@ -5,8 +5,10 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import * as Haptics from "expo-haptics";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { RideHistoryCard } from "@/components/RideHistoryCard";
+import { RideInsights } from "@/components/RideInsights";
 import { EmptyState } from "@/components/EmptyState";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
@@ -53,11 +55,20 @@ const MOCK_RIDES = [
     driverName: "David Park",
     status: "completed",
   },
+  {
+    id: "4",
+    date: "Jan 14, 8:00 AM",
+    pickupAddress: "Home",
+    destinationAddress: "Work",
+    fare: "$15.00",
+    driverName: "Lisa Wang",
+    status: "completed",
+  },
 ];
 
 const MOCK_SCHEDULED = [
   {
-    id: "4",
+    id: "5",
     date: "Tomorrow, 8:00 AM",
     pickupAddress: "123 Main Street, San Francisco",
     destinationAddress: "SFO Airport Terminal 1",
@@ -98,8 +109,25 @@ export default function ActivityScreen({ navigation }: Props) {
     navigation.navigate("RideDetails", { rideId });
   };
 
-  const renderItem = ({ item }: { item: typeof MOCK_RIDES[0] }) => (
-    <RideHistoryCard ride={item} onPress={() => handleRidePress(item.id)} />
+  const renderHeader = () => (
+    <View style={styles.headerContent}>
+      {selectedIndex === 0 ? (
+        <Animated.View entering={FadeInDown.delay(100).springify()}>
+          <RideInsights
+            monthlySpend={128}
+            totalRides={47}
+            timeSaved={12}
+            favoriteTime="8-9 AM weekdays"
+          />
+        </Animated.View>
+      ) : null}
+    </View>
+  );
+
+  const renderItem = ({ item, index }: { item: typeof MOCK_RIDES[0]; index: number }) => (
+    <Animated.View entering={FadeInDown.delay(150 + index * 50).springify()}>
+      <RideHistoryCard ride={item} onPress={() => handleRidePress(item.id)} />
+    </Animated.View>
   );
 
   const renderEmpty = () => (
@@ -142,6 +170,7 @@ export default function ActivityScreen({ navigation }: Props) {
         data={data}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderHeader}
         contentContainerStyle={[
           styles.listContent,
           {
@@ -174,6 +203,9 @@ const styles = StyleSheet.create({
   },
   segmentedControl: {
     height: 36,
+  },
+  headerContent: {
+    marginBottom: Spacing.lg,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,

@@ -5,10 +5,12 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import * as Location from "expo-location";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 
 import { MapViewWrapper, Marker } from "@/components/MapViewWrapper";
 import { SearchBar } from "@/components/SearchBar";
 import { GlassCard } from "@/components/GlassCard";
+import { InsightPanel } from "@/components/InsightPanel";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
@@ -30,8 +32,9 @@ interface Props {
 }
 
 const SAVED_LOCATIONS = [
-  { id: "1", name: "Home", icon: "home" as const },
-  { id: "2", name: "Work", icon: "briefcase" as const },
+  { id: "1", name: "Home", icon: "home" as const, color: "#007AFF" },
+  { id: "2", name: "Work", icon: "briefcase" as const, color: "#34C759" },
+  { id: "3", name: "Gym", icon: "activity" as const, color: "#FF9500" },
 ];
 
 const INITIAL_REGION = {
@@ -123,20 +126,33 @@ export default function HomeScreen({ navigation }: Props) {
       </MapViewWrapper>
 
       <View style={[styles.topContainer, { paddingTop: insets.top + Spacing.md }]}>
-        <SearchBar placeholder="Where to?" onPress={handleSearchPress} />
+        <Animated.View entering={FadeInDown.delay(100).springify()}>
+          <SearchBar placeholder="Where to?" onPress={handleSearchPress} />
+        </Animated.View>
         
-        <View style={styles.savedLocationsContainer}>
-          {SAVED_LOCATIONS.map((loc) => (
-            <GlassCard
+        <Animated.View 
+          entering={FadeInDown.delay(200).springify()}
+          style={styles.savedLocationsContainer}
+        >
+          {SAVED_LOCATIONS.map((loc, index) => (
+            <Animated.View 
               key={loc.id}
-              onPress={() => handleSavedLocationPress(loc.id)}
-              style={styles.savedLocationPill}
+              entering={FadeInDown.delay(200 + index * 50).springify()}
             >
-              <Feather name={loc.icon} size={16} color={theme.text} />
-              <ThemedText type="small">{loc.name}</ThemedText>
-            </GlassCard>
+              <GlassCard
+                onPress={() => handleSavedLocationPress(loc.id)}
+                style={styles.savedLocationPill}
+              >
+                <View style={[styles.savedLocationIcon, { backgroundColor: `${loc.color}20` }]}>
+                  <Feather name={loc.icon} size={14} color={loc.color} />
+                </View>
+                <ThemedText type="small">{loc.name}</ThemedText>
+              </GlassCard>
+            </Animated.View>
           ))}
-        </View>
+        </Animated.View>
+
+        <InsightPanel onPress={() => {}} />
       </View>
 
       <View
@@ -145,12 +161,14 @@ export default function HomeScreen({ navigation }: Props) {
           { paddingBottom: tabBarHeight + Spacing.lg },
         ]}
       >
-        <GlassCard
-          onPress={handleCurrentLocationPress}
-          style={styles.currentLocationButton}
-        >
-          <Feather name="navigation" size={20} color={theme.accent} />
-        </GlassCard>
+        <Animated.View entering={FadeInUp.delay(400).springify()}>
+          <GlassCard
+            onPress={handleCurrentLocationPress}
+            style={styles.currentLocationButton}
+          >
+            <Feather name="navigation" size={20} color={theme.accent} />
+          </GlassCard>
+        </Animated.View>
       </View>
     </View>
   );
@@ -181,6 +199,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
+  },
+  savedLocationIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   bottomContainer: {
     position: "absolute",

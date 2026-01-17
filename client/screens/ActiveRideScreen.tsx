@@ -9,11 +9,14 @@ import Animated, {
   withRepeat,
   withTiming,
   Easing,
+  FadeInDown,
+  FadeInUp,
 } from "react-native-reanimated";
 
 import { MapViewWrapper, Marker, Polyline } from "@/components/MapViewWrapper";
 import { DriverCard } from "@/components/DriverCard";
 import { SOSButton } from "@/components/SOSButton";
+import { TripShareButton } from "@/components/TripShareButton";
 import { Button } from "@/components/Button";
 import { ThemedText } from "@/components/ThemedText";
 import { GlassCard } from "@/components/GlassCard";
@@ -50,6 +53,13 @@ const MOCK_DRIVER = {
 
 type RideStatus = "finding_driver" | "driver_arriving" | "in_progress" | "arriving";
 
+const STATUS_MESSAGES = {
+  finding_driver: "Finding your driver...",
+  driver_arriving: "Driver is on the way",
+  in_progress: "On the way to destination",
+  arriving: "Almost there!",
+};
+
 export default function ActiveRideScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
@@ -64,6 +74,7 @@ export default function ActiveRideScreen({ navigation, route }: Props) {
   });
 
   const pulseOpacity = useSharedValue(0.3);
+  const progressWidth = useSharedValue(0);
 
   useEffect(() => {
     pulseOpacity.value = withRepeat(
@@ -77,9 +88,14 @@ export default function ActiveRideScreen({ navigation, route }: Props) {
     opacity: pulseOpacity.value,
   }));
 
+  const progressStyle = useAnimatedStyle(() => ({
+    width: `${progressWidth.value}%`,
+  }));
+
   useEffect(() => {
     const timer1 = setTimeout(() => {
       setStatus("driver_arriving");
+      progressWidth.value = withTiming(25, { duration: 500 });
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -91,6 +107,7 @@ export default function ActiveRideScreen({ navigation, route }: Props) {
         longitude: pickup.longitude - 0.002,
       });
       setEta("2 min");
+      progressWidth.value = withTiming(50, { duration: 500 });
     }, 4000);
 
     const timer3 = setTimeout(() => {
@@ -100,6 +117,7 @@ export default function ActiveRideScreen({ navigation, route }: Props) {
       });
       setStatus("in_progress");
       setEta("15 min");
+      progressWidth.value = withTiming(75, { duration: 500 });
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
@@ -129,21 +147,6 @@ export default function ActiveRideScreen({ navigation, route }: Props) {
       fare: "$18.75",
       driver: MOCK_DRIVER,
     });
-  };
-
-  const getStatusText = () => {
-    switch (status) {
-      case "finding_driver":
-        return "Finding your driver...";
-      case "driver_arriving":
-        return "Driver is on the way";
-      case "in_progress":
-        return "On the way to destination";
-      case "arriving":
-        return "Arriving at destination";
-      default:
-        return "";
-    }
   };
 
   const routeCoordinates = [
@@ -205,42 +208,80 @@ export default function ActiveRideScreen({ navigation, route }: Props) {
       </MapViewWrapper>
 
       <View style={[styles.topContainer, { paddingTop: insets.top + Spacing.md }]}>
-        <GlassCard style={styles.statusCard}>
-          {status === "finding_driver" ? (
-            <Animated.View style={[styles.pulseIndicator, { backgroundColor: theme.accent }, pulseStyle]} />
-          ) : null}
-          <ThemedText type="h3">{getStatusText()}</ThemedText>
-          {status !== "finding_driver" ? (
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-              ETA: {eta}
-            </ThemedText>
-          ) : null}
-        </GlassCard>
+        <Animated.View 
+          entering={FadeInDown.delay(100).springify()}
+          style={styles.statusRow}
+        >
+          <GlassCard style={styles.statusCard}>
+            {status === "finding_driver" ? (
+              <Animated.View style={[styles.pulseIndicator, { backgroundColor: theme.accent }, pulseStyle]} />
+            ) : (
+              <Feather 
+                name={status === "in_progress" ? "navigation" : "user"} 
+                size={16} 
+                color={theme.accent} 
+              />
+            )}
+            <View style={styles.statusText}>
+              <ThemedText type="h4">{STATUS_MESSAGES[status]}</ThemedText>
+              {status !== "finding_driver" ? (
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                  ETA: {eta}
+                </ThemedText>
+              ) : null}
+            </View>
+          </GlassCard>
 
-        <SOSButton onPress={handleSOS} compact />
+          <SOSButton onPress={handleSOS} compact />
+        </Animated.View>
+
+        {status !== "finding_driver" ? (
+          <Animated.View entering={FadeInDown.delay(200).springify()}>
+            <View style={[styles.progressContainer, { backgroundColor: theme.backgroundTertiary }]}>
+              <Animated.View 
+                style={[styles.progressBar, { backgroundColor: theme.accent }, progressStyle]} 
+              />
+            </View>
+          </Animated.View>
+        ) : null}
       </View>
 
       <View style={[styles.bottomContainer, { paddingBottom: insets.bottom + Spacing.lg }]}>
         {status !== "finding_driver" ? (
-          <DriverCard
-            driver={MOCK_DRIVER}
-            eta={status === "driver_arriving" ? eta : undefined}
-            onCallPress={() => {}}
-            onMessagePress={() => {}}
-          />
+          <Animated.View entering={FadeInUp.delay(100).springify()}>
+            <DriverCard
+              driver={MOCK_DRIVER}
+              eta={status === "driver_arriving" ? eta : undefined}
+              onCallPress={() => {}}
+              onMessagePress={() => {}}
+            />
+          </Animated.View>
         ) : null}
 
-        {status === "finding_driver" ? (
-          <Button variant="outline" onPress={handleCancelRide}>
-            Cancel Ride
-          </Button>
-        ) : null}
+        <Animated.View 
+          entering={FadeInUp.delay(200).springify()}
+          style={styles.actionRow}
+        >
+          {status !== "finding_driver" ? (
+            <TripShareButton
+              rideId={route.params.rideId}
+              driverName={MOCK_DRIVER.name}
+              eta={eta}
+            />
+          ) : null}
 
-        {status === "in_progress" ? (
-          <Button variant="secondary" onPress={handleCompleteRide}>
-            Complete Ride (Demo)
-          </Button>
-        ) : null}
+          {status === "finding_driver" ? (
+            <Button variant="outline" onPress={handleCancelRide} fullWidth>
+              Cancel Ride
+            </Button>
+          ) : null}
+
+          {status === "in_progress" ? (
+            <Button variant="secondary" onPress={handleCompleteRide}>
+              Complete Ride (Demo)
+            </Button>
+          ) : null}
+        </Animated.View>
       </View>
     </View>
   );
@@ -258,10 +299,12 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  statusRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg,
     gap: Spacing.md,
   },
   statusCard: {
@@ -270,10 +313,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.md,
   },
+  statusText: {
+    flex: 1,
+    gap: 2,
+  },
   pulseIndicator: {
     width: 12,
     height: 12,
     borderRadius: 6,
+  },
+  progressContainer: {
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: "100%",
+    borderRadius: 2,
   },
   bottomContainer: {
     position: "absolute",
@@ -281,6 +337,11 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  actionRow: {
+    flexDirection: "row",
+    justifyContent: "center",
     gap: Spacing.md,
   },
   pickupMarker: {
