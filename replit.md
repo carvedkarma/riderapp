@@ -1,14 +1,15 @@
 # RideX - Premium iOS Ride-Sharing App
 
 ## Overview
-RideX is a premium ride-sharing mobile application built with Expo React Native for iOS, featuring a clean and sophisticated design inspired by luxury automotive experiences. The app provides riders with a seamless booking experience, real-time tracking, and transparent pricing.
+RideX is a premium ride-sharing mobile application built with Expo React Native for iOS, featuring an Uber-inspired dark-mode design with a single dashboard layout. The app provides riders with a seamless booking experience, real-time tracking, and transparent pricing.
 
 ## Architecture
 
 ### Frontend (Expo React Native)
-- **Navigation**: React Navigation 7 with native stack and bottom tabs
+- **Navigation**: React Navigation 7 with native stack (no bottom tabs)
+- **Layout**: Single Dashboard with full-screen map and bottom sheet (Uber-style)
 - **State Management**: React Query for server state
-- **Styling**: StyleSheet with custom theme system
+- **Styling**: StyleSheet with custom dark theme system
 - **Components**: Custom glass-morphism cards, premium buttons, animated interactions
 
 ### Backend (Express.js)
@@ -20,7 +21,11 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 ├── client/
 │   ├── components/        # Reusable UI components
 │   ├── screens/           # Screen components
+│   │   ├── DashboardScreen.tsx  # Main screen with map and bottom sheet
+│   │   ├── ActivityScreen.tsx   # Ride history
+│   │   └── AccountScreen.tsx    # User profile
 │   ├── navigation/        # Navigation configuration
+│   │   └── RootStackNavigator.tsx  # Main stack navigator
 │   ├── hooks/             # Custom hooks
 │   ├── constants/         # Theme and constants
 │   └── lib/               # Utilities and API client
@@ -35,8 +40,8 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 ```
 
 ## Key Features
-1. **Home Screen**: Interactive map with location search, smart insight panel (demand/driver density)
-2. **Destination Search**: Saved places (Home, Work, Gym) and recent locations
+1. **Dashboard**: Full-screen dark map with bottom sheet, Activity and Account accessible via top icons
+2. **Destination Search**: Saved places (Home, Work) and recent locations
 3. **Vehicle Selection**: Economy, Comfort, Premium, Luxury tiers with driver earnings visibility
 4. **Ride Preferences**: Quiet ride, music allowed, temperature preference toggles
 5. **Fare Lock Timer**: 120-second countdown with confidence indicator
@@ -47,6 +52,7 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 10. **Safety Center**: SOS button, emergency contacts, trip sharing
 
 ## Enhanced Components
+- **DashboardScreen**: Full-screen map with center pin marker and bottom sheet
 - **InsightPanel**: Shows demand rising/falling, suggested booking timing, driver density
 - **RidePreferences**: Quiet ride, music, temperature preferences with iOS toggles
 - **FareLockTimer**: Countdown with color-coded urgency and confidence indicator
@@ -56,16 +62,28 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 - **DriverEarningsBadge**: Transparent driver earnings visibility
 
 ## Design System
-- **Primary Color**: Deep Black (#000000)
-- **Accent Color**: Champagne Gold (#C9AA70)
-- **Background**: Pure White (#FFFFFF)
+- **Theme**: Dark mode forced (no light mode toggle)
+- **Primary Background**: Deep Black (#000000)
+- **Secondary Background**: Dark Gray (#1C1C1E)
+- **Accent Color**: Champagne Gold (#D4B87A)
+- **Text Color**: White (#FFFFFF)
 - **Glass-morphism effects** with blur on iOS
 - **SF Pro typography** (iOS system font)
-- **React Native Reanimated** for smooth FadeIn, ZoomIn animations
+- **React Native Reanimated** for smooth FadeIn, SlideIn, ZoomIn animations
 - **Haptic feedback** throughout (Light, Medium, Selection, Success)
 
+## Navigation Structure
+- Dashboard (initial) → DestinationSearch (modal)
+- Dashboard → Activity (stack)
+- Dashboard → Account (stack)
+- DestinationSearch → RideConfirmation → ActiveRide → RideComplete
+- Account → PaymentMethods, SavedPlaces, SafetyCenter
+
 ## Recent Changes
-- January 17, 2026: Enhanced UI/UX with insight panels, fare lock timer, ride preferences, tip slider, and smooth animations
+- January 17, 2026: Redesigned to Uber-style single dashboard layout with full-screen dark map and bottom sheet
+- January 17, 2026: Removed bottom tab navigation, Activity and Account now accessible from dashboard icons
+- January 17, 2026: Forced dark theme for premium appearance
+- January 17, 2026: Enhanced UI/UX with insight panels, fare lock timer, ride preferences, tip slider
 - January 17, 2026: Initial app creation with full rider functionality
 
 ## Development Commands
