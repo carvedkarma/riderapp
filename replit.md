@@ -35,22 +35,37 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 ```
 
 ## Key Features
-1. **Home Screen**: Interactive map with location search
-2. **Destination Search**: Saved places and recent locations
-3. **Vehicle Selection**: Economy, Comfort, Premium, Luxury tiers
-4. **Ride Tracking**: Real-time driver location updates
-5. **Ride History**: Past trips with detailed receipts
-6. **Account Management**: Profile, payment methods, safety settings
-7. **Safety Center**: SOS button and emergency features
+1. **Home Screen**: Interactive map with location search, smart insight panel (demand/driver density)
+2. **Destination Search**: Saved places (Home, Work, Gym) and recent locations
+3. **Vehicle Selection**: Economy, Comfort, Premium, Luxury tiers with driver earnings visibility
+4. **Ride Preferences**: Quiet ride, music allowed, temperature preference toggles
+5. **Fare Lock Timer**: 120-second countdown with confidence indicator
+6. **Ride Tracking**: Real-time driver location with progress bar and trip sharing
+7. **Ride Complete**: 5-star rating, iOS-style tip slider ($0-$20), detailed fare breakdown
+8. **Ride History**: Past trips with monthly spend insights, time saved, suggested booking times
+9. **Account Management**: Profile, payment methods, saved places
+10. **Safety Center**: SOS button, emergency contacts, trip sharing
+
+## Enhanced Components
+- **InsightPanel**: Shows demand rising/falling, suggested booking timing, driver density
+- **RidePreferences**: Quiet ride, music, temperature preferences with iOS toggles
+- **FareLockTimer**: Countdown with color-coded urgency and confidence indicator
+- **TipSlider**: iOS-style slider with preset buttons (web-compatible)
+- **RideInsights**: Monthly stats, total rides, time saved visualization
+- **TripShareButton**: Share ride status with contacts
+- **DriverEarningsBadge**: Transparent driver earnings visibility
 
 ## Design System
 - **Primary Color**: Deep Black (#000000)
 - **Accent Color**: Champagne Gold (#C9AA70)
 - **Background**: Pure White (#FFFFFF)
-- **Glass-morphism effects on iOS
-- **SF Pro typography (iOS system font)
+- **Glass-morphism effects** with blur on iOS
+- **SF Pro typography** (iOS system font)
+- **React Native Reanimated** for smooth FadeIn, ZoomIn animations
+- **Haptic feedback** throughout (Light, Medium, Selection, Success)
 
 ## Recent Changes
+- January 17, 2026: Enhanced UI/UX with insight panels, fare lock timer, ride preferences, tip slider, and smooth animations
 - January 17, 2026: Initial app creation with full rider functionality
 
 ## Development Commands
