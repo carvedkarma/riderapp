@@ -1,28 +1,34 @@
 import { 
   users, type User, type InsertUser,
   savedLocations, type SavedLocation, type InsertSavedLocation,
-  drivers, type Driver, type InsertDriver,
+  driverProfiles, type DriverProfile, type InsertDriverProfile,
   rides, type Ride, type InsertRide,
   paymentMethods, type PaymentMethod, type InsertPaymentMethod,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, ne, isNotNull, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   
   getSavedLocations(userId: string): Promise<SavedLocation[]>;
   createSavedLocation(location: InsertSavedLocation): Promise<SavedLocation>;
   deleteSavedLocation(id: string): Promise<void>;
   
-  getDrivers(): Promise<Driver[]>;
-  getDriver(id: string): Promise<Driver | undefined>;
-  createDriver(driver: InsertDriver): Promise<Driver>;
+  getDriverProfile(userId: string): Promise<DriverProfile | undefined>;
+  createDriverProfile(profile: InsertDriverProfile): Promise<DriverProfile>;
+  updateDriverProfile(userId: string, updates: Partial<DriverProfile>): Promise<DriverProfile | undefined>;
+  getOnlineDrivers(): Promise<(DriverProfile & { user: User })[]>;
+  getNearbyDrivers(lat: number, lng: number, radiusMiles: number): Promise<(DriverProfile & { user: User })[]>;
   
   getRides(userId: string): Promise<Ride[]>;
+  getDriverRides(driverId: string): Promise<Ride[]>;
+  getPendingRides(): Promise<(Ride & { rider: User })[]>;
   getRide(id: string): Promise<Ride | undefined>;
+  getRideWithDetails(id: string): Promise<(Ride & { rider: User; driver?: User }) | undefined>;
   createRide(ride: InsertRide): Promise<Ride>;
   updateRide(id: string, updates: Partial<Ride>): Promise<Ride | undefined>;
   
@@ -37,14 +43,19 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
+    const [updated] = await db.update(users).set(updates).where(eq(users.id, id)).returning();
+    return updated || undefined;
   }
 
   async getSavedLocations(userId: string): Promise<SavedLocation[]> {
@@ -60,27 +71,104 @@ export class DatabaseStorage implements IStorage {
     await db.delete(savedLocations).where(eq(savedLocations.id, id));
   }
 
-  async getDrivers(): Promise<Driver[]> {
-    return db.select().from(drivers);
+  async getDriverProfile(userId: string): Promise<DriverProfile | undefined> {
+    const [profile] = await db.select().from(driverProfiles).where(eq(driverProfiles.userId, userId));
+    return profile || undefined;
   }
 
-  async getDriver(id: string): Promise<Driver | undefined> {
-    const [driver] = await db.select().from(drivers).where(eq(drivers.id, id));
-    return driver || undefined;
-  }
-
-  async createDriver(driver: InsertDriver): Promise<Driver> {
-    const [created] = await db.insert(drivers).values(driver).returning();
+  async createDriverProfile(profile: InsertDriverProfile): Promise<DriverProfile> {
+    const [created] = await db.insert(driverProfiles).values(profile).returning();
     return created;
   }
 
+  async updateDriverProfile(userId: string, updates: Partial<DriverProfile>): Promise<DriverProfile | undefined> {
+    const [updated] = await db.update(driverProfiles)
+      .set(updates)
+      .where(eq(driverProfiles.userId, userId))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getOnlineDrivers(): Promise<(DriverProfile & { user: User })[]> {
+    const results = await db.select({
+      driverProfile: driverProfiles,
+      user: users,
+    })
+      .from(driverProfiles)
+      .innerJoin(users, eq(driverProfiles.userId, users.id))
+      .where(eq(driverProfiles.isOnline, true));
+    
+    return results.map(r => ({ ...r.driverProfile, user: r.user }));
+  }
+
+  async getNearbyDrivers(lat: number, lng: number, radiusMiles: number): Promise<(DriverProfile & { user: User })[]> {
+    const results = await db.select({
+      driverProfile: driverProfiles,
+      user: users,
+    })
+      .from(driverProfiles)
+      .innerJoin(users, eq(driverProfiles.userId, users.id))
+      .where(and(
+        eq(driverProfiles.isOnline, true),
+        isNotNull(driverProfiles.currentLatitude),
+        isNotNull(driverProfiles.currentLongitude)
+      ));
+    
+    return results
+      .map(r => ({ ...r.driverProfile, user: r.user }))
+      .filter(driver => {
+        if (!driver.currentLatitude || !driver.currentLongitude) return false;
+        const dLat = Number(driver.currentLatitude) - lat;
+        const dLng = Number(driver.currentLongitude) - lng;
+        const distance = Math.sqrt(Math.pow(dLat * 69, 2) + Math.pow(dLng * 54.6, 2));
+        return distance <= radiusMiles;
+      });
+  }
+
   async getRides(userId: string): Promise<Ride[]> {
-    return db.select().from(rides).where(eq(rides.userId, userId)).orderBy(desc(rides.createdAt));
+    return db.select().from(rides).where(eq(rides.riderId, userId)).orderBy(desc(rides.createdAt));
+  }
+
+  async getDriverRides(driverId: string): Promise<Ride[]> {
+    return db.select().from(rides).where(eq(rides.driverId, driverId)).orderBy(desc(rides.createdAt));
+  }
+
+  async getPendingRides(): Promise<(Ride & { rider: User })[]> {
+    const results = await db.select({
+      ride: rides,
+      rider: users,
+    })
+      .from(rides)
+      .innerJoin(users, eq(rides.riderId, users.id))
+      .where(eq(rides.status, "pending"))
+      .orderBy(desc(rides.createdAt));
+    
+    return results.map(r => ({ ...r.ride, rider: r.rider }));
   }
 
   async getRide(id: string): Promise<Ride | undefined> {
     const [ride] = await db.select().from(rides).where(eq(rides.id, id));
     return ride || undefined;
+  }
+
+  async getRideWithDetails(id: string): Promise<(Ride & { rider: User; driver?: User }) | undefined> {
+    const [result] = await db.select({
+      ride: rides,
+      rider: users,
+    })
+      .from(rides)
+      .innerJoin(users, eq(rides.riderId, users.id))
+      .where(eq(rides.id, id));
+    
+    if (!result) return undefined;
+
+    let driver: User | undefined;
+    if (result.ride.driverId) {
+      const [driverResult] = await db.select().from(users).where(eq(users.id, result.ride.driverId));
+      driver = driverResult;
+    }
+
+    return { ...result.ride, rider: result.rider, driver };
   }
 
   async createRide(ride: InsertRide): Promise<Ride> {

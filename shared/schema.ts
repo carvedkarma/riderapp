@@ -19,16 +19,23 @@ export const vehicleTierEnum = pgEnum("vehicle_tier", [
   "luxury"
 ]);
 
+export const userRoleEnum = pgEnum("user_role", [
+  "rider",
+  "driver",
+  "both"
+]);
+
 export const users = pgTable("users", {
   id: varchar("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
+  username: text("username").unique(),
+  email: text("email").notNull().unique(),
   password: text("password").notNull(),
   fullName: text("full_name"),
-  email: text("email"),
   phone: text("phone"),
   avatarUrl: text("avatar_url"),
+  role: userRoleEnum("role").default("rider"),
   rating: decimal("rating", { precision: 2, scale: 1 }).default("5.0"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -46,21 +53,26 @@ export const savedLocations = pgTable("saved_locations", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const drivers = pgTable("drivers", {
+export const driverProfiles = pgTable("driver_profiles", {
   id: varchar("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  fullName: text("full_name").notNull(),
-  phone: text("phone").notNull(),
-  avatarUrl: text("avatar_url"),
-  rating: decimal("rating", { precision: 2, scale: 1 }).default("4.8"),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
   vehicleMake: text("vehicle_make").notNull(),
   vehicleModel: text("vehicle_model").notNull(),
+  vehicleYear: integer("vehicle_year"),
   vehicleColor: text("vehicle_color").notNull(),
   vehiclePlate: text("vehicle_plate").notNull(),
   vehicleTier: vehicleTierEnum("vehicle_tier").notNull(),
-  isVerified: boolean("is_verified").default(true),
-  totalRides: integer("total_rides").default(0),
+  licenseNumber: text("license_number"),
+  isVerified: boolean("is_verified").default(false),
+  isOnline: boolean("is_online").default(false),
+  currentLatitude: decimal("current_latitude", { precision: 10, scale: 7 }),
+  currentLongitude: decimal("current_longitude", { precision: 10, scale: 7 }),
+  totalTrips: integer("total_trips").default(0),
+  totalEarnings: decimal("total_earnings", { precision: 10, scale: 2 }).default("0"),
+  driverRating: decimal("driver_rating", { precision: 2, scale: 1 }).default("5.0"),
+  lastLocationUpdate: timestamp("last_location_update"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -68,8 +80,8 @@ export const rides = pgTable("rides", {
   id: varchar("id")
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
-  driverId: varchar("driver_id").references(() => drivers.id),
+  riderId: varchar("rider_id").notNull().references(() => users.id),
+  driverId: varchar("driver_id").references(() => users.id),
   status: rideStatusEnum("status").default("pending"),
   vehicleTier: vehicleTierEnum("vehicle_tier").notNull(),
   pickupAddress: text("pickup_address").notNull(),
@@ -80,11 +92,15 @@ export const rides = pgTable("rides", {
   destinationLongitude: decimal("destination_longitude", { precision: 10, scale: 7 }).notNull(),
   estimatedFare: decimal("estimated_fare", { precision: 10, scale: 2 }).notNull(),
   actualFare: decimal("actual_fare", { precision: 10, scale: 2 }),
+  platformFee: decimal("platform_fee", { precision: 10, scale: 2 }),
+  driverEarnings: decimal("driver_earnings", { precision: 10, scale: 2 }),
   estimatedDuration: integer("estimated_duration"),
   estimatedDistance: decimal("estimated_distance", { precision: 10, scale: 2 }),
   scheduledFor: timestamp("scheduled_for"),
+  acceptedAt: timestamp("accepted_at"),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
+  cancelledAt: timestamp("cancelled_at"),
   riderRating: integer("rider_rating"),
   driverRating: integer("driver_rating"),
   tip: decimal("tip", { precision: 10, scale: 2 }),
@@ -103,10 +119,15 @@ export const paymentMethods = pgTable("payment_methods", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   savedLocations: many(savedLocations),
-  rides: many(rides),
+  ridesAsRider: many(rides, { relationName: "riderRides" }),
+  ridesAsDriver: many(rides, { relationName: "driverRides" }),
   paymentMethods: many(paymentMethods),
+  driverProfile: one(driverProfiles, {
+    fields: [users.id],
+    references: [driverProfiles.userId],
+  }),
 }));
 
 export const savedLocationsRelations = relations(savedLocations, ({ one }) => ({
@@ -116,18 +137,23 @@ export const savedLocationsRelations = relations(savedLocations, ({ one }) => ({
   }),
 }));
 
-export const driversRelations = relations(drivers, ({ many }) => ({
-  rides: many(rides),
+export const driverProfilesRelations = relations(driverProfiles, ({ one }) => ({
+  user: one(users, {
+    fields: [driverProfiles.userId],
+    references: [users.id],
+  }),
 }));
 
 export const ridesRelations = relations(rides, ({ one }) => ({
-  user: one(users, {
-    fields: [rides.userId],
+  rider: one(users, {
+    fields: [rides.riderId],
     references: [users.id],
+    relationName: "riderRides",
   }),
-  driver: one(drivers, {
+  driver: one(users, {
     fields: [rides.driverId],
-    references: [drivers.id],
+    references: [users.id],
+    relationName: "driverRides",
   }),
 }));
 
@@ -138,9 +164,24 @@ export const paymentMethodsRelations = relations(paymentMethods, ({ one }) => ({
   }),
 }));
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  rating: true,
+});
+
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+export const signupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  fullName: z.string().min(2),
+  phone: z.string().optional(),
+  avatarUrl: z.string().optional(),
+  role: z.enum(["rider", "driver", "both"]).optional(),
 });
 
 export const insertSavedLocationSchema = createInsertSchema(savedLocations).omit({
@@ -153,7 +194,7 @@ export const insertRideSchema = createInsertSchema(rides).omit({
   createdAt: true,
 });
 
-export const insertDriverSchema = createInsertSchema(drivers).omit({
+export const insertDriverProfileSchema = createInsertSchema(driverProfiles).omit({
   id: true,
   createdAt: true,
 });
@@ -167,8 +208,8 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type SavedLocation = typeof savedLocations.$inferSelect;
 export type InsertSavedLocation = z.infer<typeof insertSavedLocationSchema>;
-export type Driver = typeof drivers.$inferSelect;
-export type InsertDriver = z.infer<typeof insertDriverSchema>;
+export type DriverProfile = typeof driverProfiles.$inferSelect;
+export type InsertDriverProfile = z.infer<typeof insertDriverProfileSchema>;
 export type Ride = typeof rides.$inferSelect;
 export type InsertRide = z.infer<typeof insertRideSchema>;
 export type PaymentMethod = typeof paymentMethods.$inferSelect;
