@@ -41,6 +41,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/auth/driver-signup", async (req, res) => {
+    try {
+      const { 
+        email, password, fullName, phone, avatarUrl,
+        vehicleMake, vehicleModel, vehicleYear, vehicleColor, vehiclePlate, vehicleTier
+      } = req.body;
+
+      if (!email || !password || !fullName || !vehicleMake || !vehicleModel || !vehicleColor || !vehiclePlate) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(409).json({ error: "Email already registered" });
+      }
+
+      const user = await storage.createUser({
+        email,
+        password,
+        fullName,
+        phone,
+        avatarUrl,
+        role: "driver",
+      });
+
+      const driverProfile = await storage.createDriverProfile({
+        userId: user.id,
+        vehicleMake,
+        vehicleModel,
+        vehicleYear: vehicleYear || null,
+        vehicleColor,
+        vehiclePlate,
+        vehicleTier: vehicleTier || "economy",
+      });
+
+      const { password: _, username: __, ...userWithoutPassword } = user;
+      res.status(201).json({ user: userWithoutPassword, driverProfile });
+    } catch (error) {
+      console.error("Driver signup error:", error);
+      res.status(500).json({ error: "Failed to create driver account" });
+    }
+  });
+
   app.post("/api/auth/login", async (req, res) => {
     try {
       const parsed = loginSchema.safeParse(req.body);

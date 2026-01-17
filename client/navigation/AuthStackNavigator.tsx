@@ -1,7 +1,9 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import LoginScreen from "@/screens/LoginScreen";
 import SignupScreen from "@/screens/SignupScreen";
+import DriverSignupScreen from "@/screens/DriverSignupScreen";
 import { useTheme } from "@/hooks/useTheme";
+import { isDriverApp } from "@/lib/appVariant";
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -22,7 +24,10 @@ export default function AuthStackNavigator() {
       }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="Signup" component={SignupScreen} />
+      <Stack.Screen 
+        name="Signup" 
+        component={isDriverApp() ? DriverSignupScreen : SignupScreen} 
+      />
     </Stack.Navigator>
   );
 }
