@@ -88,7 +88,9 @@ export default function DashboardScreen({ navigation }: Props) {
       setLocationPermission(status === "granted");
 
       if (status === "granted") {
-        const currentLocation = await Location.getCurrentPositionAsync({});
+        const currentLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
         setLocation(currentLocation);
 
         try {
@@ -97,9 +99,11 @@ export default function DashboardScreen({ navigation }: Props) {
             longitude: currentLocation.coords.longitude,
           });
           if (address) {
-            setCurrentAddress(
-              `${address.street || ""} ${address.name || ""}`.trim() || "Current Location"
-            );
+            const formattedAddress = [
+              address.street,
+              address.city,
+            ].filter(Boolean).join(", ");
+            setCurrentAddress(formattedAddress || "Current Location");
           }
         } catch (e) {
           setCurrentAddress("Current Location");
