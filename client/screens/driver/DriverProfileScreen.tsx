@@ -5,6 +5,7 @@ import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useQuery } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
 import { GlassCard } from "@/components/GlassCard";
@@ -13,6 +14,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { DriverStackParamList } from "@/navigation/DriverStackNavigator";
 import { useAppStore } from "@/stores/appStore";
+import { useAuthStore } from "@/stores/authStore";
 
 type DriverProfileScreenNavigationProp = NativeStackNavigationProp<
   DriverStackParamList,
@@ -81,6 +83,15 @@ export default function DriverProfileScreen({ navigation }: Props) {
   const headerHeight = useHeaderHeight();
   const { theme } = useTheme();
   const { setMode, toggleDebugMode } = useAppStore();
+  const { user, driverProfile, logout } = useAuthStore();
+
+  const { data: driverRides = [] } = useQuery<any[]>({
+    queryKey: ["/api/drivers", user?.id, "rides"],
+    enabled: !!user?.id,
+  });
+
+  const completedTrips = driverRides.filter(r => r.status === "completed").length;
+  const driverRating = driverProfile?.driverRating ? Number(driverProfile.driverRating).toFixed(2) : "5.00";
 
   const handleSwitchToRider = () => {
     if (Platform.OS !== "web") {
@@ -96,6 +107,13 @@ export default function DriverProfileScreen({ navigation }: Props) {
     toggleDebugMode();
   };
 
+  const handleSignOut = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    logout();
+  };
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.backgroundRoot }]}
@@ -109,19 +127,23 @@ export default function DriverProfileScreen({ navigation }: Props) {
       <Animated.View entering={FadeInDown.delay(100)}>
         <GlassCard style={styles.profileCard}>
           <View style={styles.profileHeader}>
-            <View style={[styles.avatar, { backgroundColor: theme.backgroundSecondary }]}>
-              <Feather name="user" size={32} color={theme.textSecondary} />
-            </View>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: theme.backgroundSecondary }]}>
+                <Feather name="user" size={32} color={theme.textSecondary} />
+              </View>
+            )}
             <View style={styles.profileInfo}>
-              <ThemedText type="h2">John Driver</ThemedText>
+              <ThemedText type="h2">{user?.fullName || "Driver"}</ThemedText>
               <View style={styles.statsRow}>
                 <View style={styles.statBadge}>
                   <Feather name="star" size={14} color={theme.accent} />
-                  <ThemedText type="body">4.92</ThemedText>
+                  <ThemedText type="body">{driverRating}</ThemedText>
                 </View>
                 <View style={[styles.statDivider, { backgroundColor: theme.textTertiary }]} />
                 <ThemedText type="caption" style={{ color: theme.textSecondary }}>
-                  1,247 trips
+                  {completedTrips} trip{completedTrips !== 1 ? "s" : ""}
                 </ThemedText>
               </View>
             </View>
@@ -157,14 +179,14 @@ export default function DriverProfileScreen({ navigation }: Props) {
         <View style={[styles.menuGroup, { backgroundColor: theme.backgroundDefault }]}>
           <MenuItem
             icon="truck"
-            title="Toyota Camry"
-            subtitle="2022 • Silver • ABC 1234"
+            title={driverProfile ? `${driverProfile.vehicleMake} ${driverProfile.vehicleModel}` : "No vehicle"}
+            subtitle={driverProfile ? `${driverProfile.vehicleYear || ""} ${driverProfile.vehicleColor} ${driverProfile.vehiclePlate}`.trim() : ""}
           />
           <View style={[styles.menuDivider, { backgroundColor: theme.backgroundSecondary }]} />
           <MenuItem
             icon="file-text"
             title="Documents"
-            subtitle="All up to date"
+            subtitle={driverProfile?.isVerified ? "All up to date" : "Pending verification"}
           />
         </View>
       </Animated.View>
@@ -234,6 +256,7 @@ export default function DriverProfileScreen({ navigation }: Props) {
             icon="log-out"
             title="Sign Out"
             danger
+            onPress={handleSignOut}
           />
         </View>
       </Animated.View>
