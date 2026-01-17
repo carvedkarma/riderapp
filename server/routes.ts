@@ -33,7 +33,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: parsed.data.role || "rider",
       });
       
-      const { password: _, ...userWithoutPassword } = user;
+      const { password: _, username: __, ...userWithoutPassword } = user;
       res.status(201).json(userWithoutPassword);
     } catch (error) {
       console.error("Signup error:", error);
@@ -53,7 +53,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Invalid email or password" });
       }
       
-      const { password: _, ...userWithoutPassword } = user;
+      const { password: _, username: __, ...userWithoutPassword } = user;
       
       const driverProfile = await storage.getDriverProfile(user.id);
       
@@ -71,7 +71,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      const { password: _, ...userWithoutPassword } = user;
+      const { password: _, username: __, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error) {
       res.status(500).json({ error: "Failed to get user" });
@@ -84,7 +84,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      const { password: _, ...userWithoutPassword } = user;
+      const { password: _, username: __, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error) {
       res.status(500).json({ error: "Failed to update user" });
