@@ -51,8 +51,15 @@ export default function DriverOnboardingScreen({ navigation }: Props) {
       description: "We need your location to match you with nearby riders and provide navigation.",
       icon: "map-pin",
       action: async () => {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        return status === "granted";
+        try {
+          if (Platform.OS === "web") {
+            return true;
+          }
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          return status === "granted";
+        } catch {
+          return true;
+        }
       },
       actionLabel: "Enable Location",
     },
