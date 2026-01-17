@@ -1,14 +1,16 @@
-import React, { useState } from "react";
-import { StyleSheet, View, ScrollView, Platform, Pressable } from "react-native";
+import React, { useState, useMemo } from "react";
+import { StyleSheet, View, ScrollView, Platform, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useQuery } from "@tanstack/react-query";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
+import { useAuthStore } from "@/stores/authStore";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { DriverStackParamList } from "@/navigation/DriverStackNavigator";
@@ -22,47 +24,61 @@ interface Props {
   navigation: DriverEarningsScreenNavigationProp;
 }
 
-const EARNINGS_DATA = {
-  today: {
-    total: 156.75,
-    trips: 8,
-    hours: 5.5,
-    tips: 24.50,
-    platformFee: 31.35,
-  },
-  week: {
-    total: 892.40,
-    trips: 47,
-    hours: 32,
-    tips: 142.80,
-    platformFee: 178.48,
-  },
-  month: {
-    total: 3245.60,
-    trips: 182,
-    hours: 124,
-    tips: 512.30,
-    platformFee: 649.12,
-  },
-};
-
-const TRIP_HISTORY = [
-  { id: "1", time: "2:30 PM", pickup: "123 Main St", dropoff: "456 Market Ave", fare: 18.50, tip: 3.00 },
-  { id: "2", time: "1:45 PM", pickup: "789 Oak Blvd", dropoff: "321 Pine St", fare: 12.25, tip: 2.00 },
-  { id: "3", time: "12:15 PM", pickup: "Airport Terminal 1", dropoff: "Downtown Hotel", fare: 42.00, tip: 8.00 },
-  { id: "4", time: "11:00 AM", pickup: "Central Station", dropoff: "Tech Park", fare: 15.75, tip: 2.50 },
-  { id: "5", time: "10:20 AM", pickup: "Riverside Dr", dropoff: "Shopping Mall", fare: 9.50, tip: 0 },
-];
+interface RideData {
+  id: string;
+  pickupAddress: string;
+  destinationAddress: string;
+  status: string;
+  completedAt: string | null;
+  actualFare: string | null;
+  driverEarnings: string | null;
+  platformFee: string | null;
+  createdAt: string;
+}
 
 export default function DriverEarningsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const { theme } = useTheme();
+  const { user } = useAuthStore();
 
   const [selectedPeriod, setSelectedPeriod] = useState(0);
   const periods = ["Today", "Week", "Month"];
-  const periodKeys = ["today", "week", "month"] as const;
-  const data = EARNINGS_DATA[periodKeys[selectedPeriod]];
+
+  const { data: rides = [], isLoading } = useQuery<RideData[]>({
+    queryKey: ["/api/drivers", user?.id, "rides"],
+    enabled: !!user?.id,
+  });
+
+  const filteredData = useMemo(() => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+
+    const completedRides = rides.filter(r => r.status === "completed" && r.completedAt);
+
+    let filteredRides: RideData[];
+    if (selectedPeriod === 0) {
+      filteredRides = completedRides.filter(r => new Date(r.completedAt!).toDateString() === today.toDateString());
+    } else if (selectedPeriod === 1) {
+      filteredRides = completedRides.filter(r => new Date(r.completedAt!) >= weekAgo);
+    } else {
+      filteredRides = completedRides.filter(r => new Date(r.completedAt!) >= monthAgo);
+    }
+
+    const totalEarnings = filteredRides.reduce((sum, r) => sum + Number(r.driverEarnings || 0), 0);
+    const totalFees = filteredRides.reduce((sum, r) => sum + Number(r.platformFee || 0), 0);
+    const totalFares = filteredRides.reduce((sum, r) => sum + Number(r.actualFare || 0), 0);
+
+    return {
+      total: totalEarnings,
+      trips: filteredRides.length,
+      platformFee: totalFees,
+      fares: totalFares,
+      recentTrips: filteredRides.slice(0, 10),
+    };
+  }, [rides, selectedPeriod]);
 
   const handlePeriodChange = (index: number) => {
     if (Platform.OS !== "web") {
@@ -70,6 +86,23 @@ export default function DriverEarningsScreen({ navigation }: Props) {
     }
     setSelectedPeriod(index);
   };
+
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
+        <ThemedText type="body" style={{ marginTop: Spacing.lg }}>Loading earnings...</ThemedText>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -96,24 +129,26 @@ export default function DriverEarningsScreen({ navigation }: Props) {
           TOTAL EARNINGS
         </ThemedText>
         <ThemedText type="hero" style={[styles.earningsAmount, { color: theme.success }]}>
-          ${data.total.toFixed(2)}
+          ${filteredData.total.toFixed(2)}
         </ThemedText>
 
         <View style={styles.statsGrid}>
           <View style={styles.statItem}>
             <Feather name="navigation" size={18} color={theme.accent} />
-            <ThemedText type="h3">{data.trips}</ThemedText>
+            <ThemedText type="h3">{filteredData.trips}</ThemedText>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>Trips</ThemedText>
           </View>
           <View style={styles.statItem}>
-            <Feather name="clock" size={18} color={theme.accent} />
-            <ThemedText type="h3">{data.hours}h</ThemedText>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>Online</ThemedText>
+            <Feather name="dollar-sign" size={18} color={theme.accent} />
+            <ThemedText type="h3">${filteredData.fares.toFixed(0)}</ThemedText>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>Fares</ThemedText>
           </View>
           <View style={styles.statItem}>
             <Feather name="trending-up" size={18} color={theme.success} />
-            <ThemedText type="h3">${(data.total / data.hours).toFixed(0)}</ThemedText>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>Per Hour</ThemedText>
+            <ThemedText type="h3">
+              ${filteredData.trips > 0 ? (filteredData.total / filteredData.trips).toFixed(0) : "0"}
+            </ThemedText>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>Per Trip</ThemedText>
           </View>
         </View>
       </Animated.View>
@@ -126,62 +161,63 @@ export default function DriverEarningsScreen({ navigation }: Props) {
             <View style={[styles.breakdownDot, { backgroundColor: theme.success }]} />
             <ThemedText type="body">Trip fares</ThemedText>
           </View>
-          <ThemedText type="body">${(data.total + data.platformFee).toFixed(2)}</ThemedText>
-        </View>
-        
-        <View style={styles.breakdownRow}>
-          <View style={styles.breakdownLabel}>
-            <View style={[styles.breakdownDot, { backgroundColor: theme.accent }]} />
-            <ThemedText type="body">Tips</ThemedText>
-          </View>
-          <ThemedText type="body" style={{ color: theme.success }}>+${data.tips.toFixed(2)}</ThemedText>
+          <ThemedText type="body">${filteredData.fares.toFixed(2)}</ThemedText>
         </View>
         
         <View style={styles.breakdownRow}>
           <View style={styles.breakdownLabel}>
             <View style={[styles.breakdownDot, { backgroundColor: theme.error }]} />
-            <ThemedText type="body">Platform fee</ThemedText>
+            <ThemedText type="body">Platform fee (20%)</ThemedText>
           </View>
-          <ThemedText type="body" style={{ color: theme.error }}>-${data.platformFee.toFixed(2)}</ThemedText>
+          <ThemedText type="body" style={{ color: theme.error }}>-${filteredData.platformFee.toFixed(2)}</ThemedText>
         </View>
         
-        <View style={[styles.breakdownTotal, { borderTopColor: theme.backgroundTertiary }]}>
-          <ThemedText type="h4">Net earnings</ThemedText>
-          <ThemedText type="h4" style={{ color: theme.success }}>${data.total.toFixed(2)}</ThemedText>
+        <View style={[styles.breakdownRow, styles.breakdownTotal, { borderTopColor: theme.backgroundTertiary }]}>
+          <ThemedText type="h4">Your earnings</ThemedText>
+          <ThemedText type="h4" style={{ color: theme.success }}>${filteredData.total.toFixed(2)}</ThemedText>
         </View>
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(300)}>
-        <ThemedText type="h4" style={styles.historyTitle}>Recent Trips</ThemedText>
+        <ThemedText type="h4" style={styles.sectionTitle}>Recent Trips</ThemedText>
         
-        {TRIP_HISTORY.map((trip, index) => (
-          <Animated.View
-            key={trip.id}
-            entering={FadeInDown.delay(350 + index * 50)}
-          >
-            <Pressable style={[styles.tripCard, { backgroundColor: theme.backgroundSecondary }]}>
-              <View style={styles.tripTime}>
-                <ThemedText type="caption" style={{ color: theme.textSecondary }}>{trip.time}</ThemedText>
-              </View>
+        {filteredData.recentTrips.length === 0 ? (
+          <View style={[styles.emptyState, { backgroundColor: theme.backgroundSecondary }]}>
+            <Feather name="truck" size={32} color={theme.textTertiary} />
+            <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+              No trips yet for this period
+            </ThemedText>
+          </View>
+        ) : (
+          filteredData.recentTrips.map((trip, index) => (
+            <Animated.View
+              key={trip.id}
+              entering={FadeInDown.delay(400 + index * 50)}
+              style={[styles.tripCard, { backgroundColor: theme.backgroundSecondary }]}
+            >
               <View style={styles.tripInfo}>
-                <View style={styles.tripRoute}>
-                  <View style={[styles.routeDot, { backgroundColor: theme.accent }]} />
-                  <ThemedText type="small" numberOfLines={1}>{trip.pickup}</ThemedText>
+                <ThemedText type="h4">${Number(trip.driverEarnings || 0).toFixed(2)}</ThemedText>
+                <ThemedText type="caption" style={{ color: theme.textSecondary }}>
+                  {trip.completedAt ? formatTime(trip.completedAt) : ""}
+                </ThemedText>
+              </View>
+              <View style={styles.tripRoute}>
+                <View style={styles.tripLocation}>
+                  <View style={[styles.locationDot, { backgroundColor: theme.accent }]} />
+                  <ThemedText type="caption" numberOfLines={1} style={{ flex: 1 }}>
+                    {trip.pickupAddress}
+                  </ThemedText>
                 </View>
-                <View style={styles.tripRoute}>
-                  <View style={[styles.routeDot, { backgroundColor: theme.text }]} />
-                  <ThemedText type="small" numberOfLines={1}>{trip.dropoff}</ThemedText>
+                <View style={styles.tripLocation}>
+                  <View style={[styles.locationDot, { backgroundColor: theme.text }]} />
+                  <ThemedText type="caption" numberOfLines={1} style={{ flex: 1, color: theme.textSecondary }}>
+                    {trip.destinationAddress}
+                  </ThemedText>
                 </View>
               </View>
-              <View style={styles.tripEarnings}>
-                <ThemedText type="h4">${trip.fare.toFixed(2)}</ThemedText>
-                {trip.tip > 0 ? (
-                  <ThemedText type="caption" style={{ color: theme.success }}>+${trip.tip.toFixed(2)} tip</ThemedText>
-                ) : null}
-              </View>
-            </Pressable>
-          </Animated.View>
-        ))}
+            </Animated.View>
+          ))
+        )}
       </Animated.View>
     </ScrollView>
   );
@@ -191,14 +227,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  loadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
   segmentControl: {
-    height: 36,
     marginBottom: Spacing.xl,
   },
   earningsCard: {
-    alignItems: "center",
     padding: Spacing.xl,
     borderRadius: BorderRadius.xl,
+    alignItems: "center",
     marginBottom: Spacing.lg,
   },
   earningsAmount: {
@@ -209,7 +248,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     width: "100%",
-    marginTop: Spacing.md,
+    marginTop: Spacing.lg,
   },
   statItem: {
     alignItems: "center",
@@ -240,42 +279,40 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   breakdownTotal: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     paddingTop: Spacing.md,
     marginTop: Spacing.sm,
     borderTopWidth: 1,
+    marginBottom: 0,
   },
-  historyTitle: {
-    marginBottom: Spacing.md,
+  emptyState: {
+    padding: Spacing["2xl"],
+    borderRadius: BorderRadius.lg,
+    alignItems: "center",
   },
   tripCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
+    gap: Spacing.lg,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.sm,
-    gap: Spacing.md,
-  },
-  tripTime: {
-    width: 60,
   },
   tripInfo: {
-    flex: 1,
-    gap: 4,
+    alignItems: "center",
+    minWidth: 70,
   },
   tripRoute: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  tripLocation: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
   },
-  routeDot: {
+  locationDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-  },
-  tripEarnings: {
-    alignItems: "flex-end",
-    gap: 2,
   },
 });

@@ -33,9 +33,9 @@ export default function DriverTripCompleteScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
 
-  const earnings = parseFloat(route.params.earnings) || 18.50;
-  const platformFee = earnings * 0.2;
-  const netEarnings = earnings - platformFee;
+  const netEarnings = parseFloat(route.params.earnings) || 0;
+  const platformFee = netEarnings / 0.8 * 0.2;
+  const tripFare = netEarnings + platformFee;
 
   React.useEffect(() => {
     if (Platform.OS !== "web") {
@@ -98,7 +98,7 @@ export default function DriverTripCompleteScreen({ navigation, route }: Props) {
             <View style={styles.breakdown}>
               <View style={styles.breakdownRow}>
                 <ThemedText type="body" style={{ color: theme.textSecondary }}>Trip fare</ThemedText>
-                <ThemedText type="body">${earnings.toFixed(2)}</ThemedText>
+                <ThemedText type="body">${tripFare.toFixed(2)}</ThemedText>
               </View>
               <View style={styles.breakdownRow}>
                 <ThemedText type="body" style={{ color: theme.textSecondary }}>Platform fee (20%)</ThemedText>
@@ -114,21 +114,21 @@ export default function DriverTripCompleteScreen({ navigation, route }: Props) {
 
         <Animated.View entering={FadeInDown.delay(400)} style={styles.statsRow}>
           <View style={[styles.statCard, { backgroundColor: theme.backgroundSecondary }]}>
-            <Feather name="clock" size={20} color={theme.accent} />
-            <ThemedText type="h3">15 min</ThemedText>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>Duration</ThemedText>
+            <Feather name="dollar-sign" size={20} color={theme.accent} />
+            <ThemedText type="h3">${tripFare.toFixed(2)}</ThemedText>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>Trip Fare</ThemedText>
           </View>
           <View style={[styles.statCard, { backgroundColor: theme.backgroundSecondary }]}>
-            <Feather name="navigation" size={20} color={theme.accent} />
-            <ThemedText type="h3">3.2 mi</ThemedText>
-            <ThemedText type="caption" style={{ color: theme.textSecondary }}>Distance</ThemedText>
+            <Feather name="percent" size={20} color={theme.accent} />
+            <ThemedText type="h3">80%</ThemedText>
+            <ThemedText type="caption" style={{ color: theme.textSecondary }}>Your Share</ThemedText>
           </View>
         </Animated.View>
 
         <Animated.View entering={FadeIn.delay(500)} style={styles.riderFeedback}>
           <View style={[styles.feedbackCard, { backgroundColor: theme.backgroundSecondary }]}>
-            <Feather name="star" size={18} color={theme.accent} />
-            <ThemedText type="body">Sarah rated you 5 stars!</ThemedText>
+            <Feather name="check-circle" size={18} color={theme.success} />
+            <ThemedText type="body">Trip completed successfully</ThemedText>
           </View>
         </Animated.View>
       </View>

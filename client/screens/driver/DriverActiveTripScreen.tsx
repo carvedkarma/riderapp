@@ -5,26 +5,26 @@ import {
   Platform,
   Pressable,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
-  FadeIn,
-  FadeInUp,
   SlideInUp,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSpring,
 } from "react-native-reanimated";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { MapViewWrapper } from "@/components/MapViewWrapper";
 import { ThemedText } from "@/components/ThemedText";
 import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
+import { getApiUrl } from "@/lib/query-client";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { DriverStackParamList } from "@/navigation/DriverStackNavigator";
@@ -46,6 +46,27 @@ interface Props {
   route: DriverActiveTripScreenRouteProp;
 }
 
+interface RideDetails {
+  id: string;
+  pickupAddress: string;
+  pickupLatitude: string;
+  pickupLongitude: string;
+  destinationAddress: string;
+  destinationLatitude: string;
+  destinationLongitude: string;
+  estimatedFare: string;
+  estimatedDistance: string;
+  estimatedDuration: number;
+  status: string;
+  rider: {
+    id: string;
+    fullName: string;
+    rating: string;
+    avatarUrl: string | null;
+    phone: string | null;
+  };
+}
+
 type TripState = "navigating" | "arrived" | "started" | "completing";
 
 const INITIAL_REGION = {
@@ -55,23 +76,28 @@ const INITIAL_REGION = {
   longitudeDelta: 0.02,
 };
 
-const RIDER_INFO = {
-  name: "Sarah M.",
-  rating: 4.9,
-  pickupAddress: "123 Main Street",
-  dropoffAddress: "456 Market Avenue",
-  estimatedTime: 15,
-  estimatedEarnings: 18.50,
-};
-
 export default function DriverActiveTripScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const mapRef = useRef<any>(null);
+  const queryClient = useQueryClient();
 
   const [tripState, setTripState] = useState<TripState>("navigating");
   const [eta, setEta] = useState(5);
+  const [isLoading, setIsLoading] = useState(false);
   const progress = useSharedValue(0);
+
+  const { data: ride, isLoading: isLoadingRide } = useQuery<RideDetails>({
+    queryKey: ["/api/rides", route.params.tripId],
+  });
+
+  useEffect(() => {
+    if (ride?.status === "driver_arriving") {
+      setTripState("arrived");
+    } else if (ride?.status === "in_progress") {
+      setTripState("started");
+    }
+  }, [ride?.status]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -97,34 +123,84 @@ export default function DriverActiveTripScreen({ navigation, route }: Props) {
     width: `${progress.value * 100}%`,
   }));
 
-  const handleArrived = () => {
+  const handleArrived = async () => {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    setTripState("arrived");
+    
+    setIsLoading(true);
+    try {
+      await fetch(new URL(`/api/rides/${route.params.tripId}/arrive`, getApiUrl()).toString(), {
+        method: "POST",
+      });
+      setTripState("arrived");
+      queryClient.invalidateQueries({ queryKey: ["/api/rides", route.params.tripId] });
+    } catch (error) {
+      console.error("Failed to mark arrival:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleStartTrip = () => {
+  const handleStartTrip = async () => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
-    setTripState("started");
+    
+    setIsLoading(true);
+    try {
+      await fetch(new URL(`/api/rides/${route.params.tripId}/start`, getApiUrl()).toString(), {
+        method: "POST",
+      });
+      setTripState("started");
+      queryClient.invalidateQueries({ queryKey: ["/api/rides", route.params.tripId] });
+    } catch (error) {
+      console.error("Failed to start trip:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleCompleteTrip = () => {
+  const handleCompleteTrip = async () => {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    navigation.replace("DriverTripComplete", {
-      tripId: route.params.tripId,
-      earnings: RIDER_INFO.estimatedEarnings.toString(),
-    });
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        new URL(`/api/rides/${route.params.tripId}/complete`, getApiUrl()).toString(),
+        { method: "POST" }
+      );
+      const completedRide = await response.json();
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
+      
+      navigation.replace("DriverTripComplete", {
+        tripId: route.params.tripId,
+        earnings: completedRide.driverEarnings || "0",
+      });
+    } catch (error) {
+      console.error("Failed to complete trip:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    
+    try {
+      await fetch(new URL(`/api/rides/${route.params.tripId}/cancel`, getApiUrl()).toString(), {
+        method: "POST",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/rides"] });
+    } catch (error) {
+      console.error("Failed to cancel ride:", error);
+    }
+    
     navigation.goBack();
   };
 
@@ -155,6 +231,29 @@ export default function DriverActiveTripScreen({ navigation, route }: Props) {
         return "";
     }
   };
+
+  if (isLoadingRide) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
+        <ThemedText type="body" style={{ marginTop: Spacing.lg }}>Loading trip details...</ThemedText>
+      </View>
+    );
+  }
+
+  if (!ride) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { backgroundColor: theme.backgroundRoot }]}>
+        <Feather name="alert-circle" size={48} color={theme.error} />
+        <ThemedText type="h3" style={{ marginTop: Spacing.lg }}>Trip not found</ThemedText>
+        <Button onPress={() => navigation.goBack()} style={{ marginTop: Spacing.xl }}>
+          Go Back
+        </Button>
+      </View>
+    );
+  }
+
+  const driverEarnings = Number(ride.estimatedFare) * 0.8;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -238,10 +337,10 @@ export default function DriverActiveTripScreen({ navigation, route }: Props) {
             </View>
             <View style={styles.riderInfo}>
               <View style={styles.riderNameRow}>
-                <ThemedText type="h3">{RIDER_INFO.name}</ThemedText>
+                <ThemedText type="h3">{ride.rider?.fullName || "Rider"}</ThemedText>
                 <View style={styles.ratingBadge}>
                   <Feather name="star" size={12} color={theme.accent} />
-                  <ThemedText type="caption">{RIDER_INFO.rating}</ThemedText>
+                  <ThemedText type="caption">{ride.rider?.rating || "5.0"}</ThemedText>
                 </View>
               </View>
               <ThemedText type="caption" style={{ color: theme.textSecondary }}>
@@ -263,7 +362,7 @@ export default function DriverActiveTripScreen({ navigation, route }: Props) {
               <View style={[styles.locationDot, { backgroundColor: theme.accent }]} />
               <View style={styles.locationText}>
                 <ThemedText type="caption" style={{ color: theme.textSecondary }}>PICKUP</ThemedText>
-                <ThemedText type="body">{RIDER_INFO.pickupAddress}</ThemedText>
+                <ThemedText type="body" numberOfLines={1}>{ride.pickupAddress}</ThemedText>
               </View>
               {tripState === "navigating" ? (
                 <ThemedText type="h4" style={{ color: theme.accent }}>{eta} min</ThemedText>
@@ -274,10 +373,10 @@ export default function DriverActiveTripScreen({ navigation, route }: Props) {
               <View style={[styles.locationDot, { backgroundColor: theme.text }]} />
               <View style={styles.locationText}>
                 <ThemedText type="caption" style={{ color: theme.textSecondary }}>DROPOFF</ThemedText>
-                <ThemedText type="body">{RIDER_INFO.dropoffAddress}</ThemedText>
+                <ThemedText type="body" numberOfLines={1}>{ride.destinationAddress}</ThemedText>
               </View>
               {tripState === "started" ? (
-                <ThemedText type="h4" style={{ color: theme.accent }}>{RIDER_INFO.estimatedTime} min</ThemedText>
+                <ThemedText type="h4" style={{ color: theme.accent }}>{ride.estimatedDuration} min</ThemedText>
               ) : null}
             </View>
           </View>
@@ -285,14 +384,14 @@ export default function DriverActiveTripScreen({ navigation, route }: Props) {
           <View style={styles.earningsPreview}>
             <Feather name="dollar-sign" size={18} color={theme.success} />
             <ThemedText type="h3" style={{ color: theme.success }}>
-              ${RIDER_INFO.estimatedEarnings.toFixed(2)}
+              ${driverEarnings.toFixed(2)}
             </ThemedText>
             <ThemedText type="caption" style={{ color: theme.textSecondary }}>
               estimated earnings
             </ThemedText>
           </View>
 
-          <Button onPress={actionButton.action} fullWidth>
+          <Button onPress={actionButton.action} fullWidth loading={isLoading}>
             {actionButton.label}
           </Button>
         </LinearGradient>
@@ -304,6 +403,10 @@ export default function DriverActiveTripScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   map: {
     ...StyleSheet.absoluteFillObject,
