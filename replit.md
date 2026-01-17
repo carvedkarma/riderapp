@@ -16,6 +16,8 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 ### Backend (Express.js)
 - **Database**: PostgreSQL with Drizzle ORM
 - **API**: RESTful endpoints for rides, users, drivers, and payment methods
+- **Authentication**: Email/password signup and login with user profiles
+- **Ride Matching**: Real-time pending ride polling for online drivers (3-second interval)
 
 ## Project Structure
 ```
@@ -66,7 +68,7 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 
 ## Driver App Features
 1. **Role Selector**: Choose between Rider and Driver modes at launch
-2. **Driver Onboarding**: 5-step setup (welcome, location, profile, vehicle, ready)
+2. **Driver Onboarding**: Single-screen vehicle registration form
 3. **Driver Home Screen**: 
    - Full-screen map with online/offline toggle
    - Today's earnings and trips summary
@@ -129,19 +131,29 @@ RideX is a premium ride-sharing mobile application built with Expo React Native 
 - DriverHome → DriverProfile
 - DriverProfile → RoleSelector (switch to Rider mode)
 
-## Mock Data & Logic
-- **Trip requests**: Appear after 5 seconds when driver goes online
-- **Earnings calculation**: 20% platform fee deducted from trip fares
-- **Zone suggestions**: Mocked demand hotspots and surge indicators
-- **Driver stats**: Mock data for trips, hours, ratings
-- **Code structure**: Ready for real API integration later
+## Real Data Integration
+- **Trip requests**: Real-time polling from /api/rides/pending every 3 seconds when driver online
+- **Earnings calculation**: 20% platform fee deducted from trip fares (real database)
+- **Driver earnings screen**: Fetches completed trips from database with Today/Week/Month filtering
+- **Active trip flow**: All status updates (arrive, start, complete) save to database
+- **Zone suggestions**: UI placeholder for future demand hotspots integration
+
+## Authentication Flow
+- Login → Dashboard (with role selector in debug mode)
+- Signup → Creates new user → Dashboard
+- Driver onboarding required for first-time drivers
+
+## Known Limitations
+- **Web Version**: Has import.meta compatibility issues with some React Native libraries. Use **Expo Go** on mobile for best experience.
 
 ## Recent Changes
+- January 17, 2026: Replaced mock data with real API calls in driver screens (active trip, earnings, trip complete)
+- January 17, 2026: Added authentication flow (login/signup screens with AuthStackNavigator)
+- January 17, 2026: Fixed database schema for user creation
+- January 17, 2026: Simplified driver onboarding to single-screen vehicle registration
+- January 17, 2026: Connected driver home screen to real-time pending ride API
 - January 17, 2026: Added complete Driver App with onboarding, trip management, and earnings tracking
 - January 17, 2026: Implemented Role Selector to switch between Rider and Driver modes
-- January 17, 2026: Fixed destination search with smaller Quick Access cards and 1-char autocomplete
-- January 17, 2026: Redesigned to Uber-style single dashboard layout
-- January 17, 2026: Enhanced UI/UX with insight panels, fare lock timer, ride preferences
 - January 17, 2026: Initial app creation with full rider functionality
 
 ## Development Commands
