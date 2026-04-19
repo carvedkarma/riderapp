@@ -1,0 +1,34 @@
+{
+  "assumptions": {
+    "horizonDays": 1260,
+    "transactionCosts": "included",
+    "regimes": [
+      "trend_up",
+      "trend_down",
+      "mean_revert",
+      "high_vol"
+    ],
+    "note": "Synthetic Monte Carlo style market; used for architecture validation only."
+  },
+  "baselineMomentum": {
+    "totalReturnPct": "35.15%",
+    "sharpe": "0.42",
+    "maxDrawdownPct": "44.69%",
+    "hitRatePct": "48.81%",
+    "avgWinBps": "90.29",
+    "avgLossBps": "-80.27"
+  },
+  "regimeAwareEnsemble": {
+    "totalReturnPct": "1232.46%",
+    "sharpe": "5.32",
+    "maxDrawdownPct": "4.55%",
+    "hitRatePct": "58.33%",
+    "avgWinBps": "60.72",
+    "avgLossBps": "-35.25"
+  },
+  "delta": {
+    "sharpeLift": "4.89",
+    "returnLiftPctPoints": "1197.31",
+    "drawdownImprovementPctPoints": "40.15"
+  }
+}

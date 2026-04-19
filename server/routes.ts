@@ -1,9 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 import { storage } from "./storage";
-import { 
-  insertRideSchema, 
-  insertSavedLocationSchema, 
+import { tradingBrain } from "./trading/brain";
+import {
+  insertRideSchema,
+  insertSavedLocationSchema,
   insertPaymentMethodSchema,
   insertDriverProfileSchema,
   loginSchema,
@@ -11,19 +14,75 @@ import {
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const tradingDashboardTemplatePath = path.resolve(
+    process.cwd(),
+    "server",
+    "templates",
+    "trading-dashboard.html",
+  );
+
+  app.get("/trading", async (_req, res) => {
+    try {
+      const html = await fs.promises.readFile(
+        tradingDashboardTemplatePath,
+        "utf-8",
+      );
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.status(200).send(html);
+    } catch (error) {
+      console.error("Trading dashboard template read error:", error);
+      res.status(500).send("Trading dashboard is unavailable.");
+    }
+  });
+
+  app.get("/api/trading/overview", (_req, res) => {
+    res.json(tradingBrain.getOverview());
+  });
+
+  app.get("/api/trading/positions", (_req, res) => {
+    res.json(tradingBrain.getPositions());
+  });
+
+  app.get("/api/trading/executions", (_req, res) => {
+    res.json(tradingBrain.getExecutions());
+  });
+
+  app.post("/api/trading/simulate", (req, res) => {
+    const days = Number(req.body?.days ?? 720);
+    const seed = Number(req.body?.seed ?? 121);
+
+    if (!Number.isFinite(days) || days < 90 || days > 5000) {
+      return res
+        .status(400)
+        .json({ error: "days must be a number between 90 and 5000" });
+    }
+
+    if (!Number.isFinite(seed) || seed < 1 || seed > 999999) {
+      return res
+        .status(400)
+        .json({ error: "seed must be a number between 1 and 999999" });
+    }
+
+    return res.json(
+      tradingBrain.runStrategySimulation(Math.floor(days), Math.floor(seed)),
+    );
+  });
+
   // Auth routes
   app.post("/api/auth/signup", async (req, res) => {
     try {
       const parsed = signupSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ error: "Invalid signup data", details: parsed.error.errors });
+        return res
+          .status(400)
+          .json({ error: "Invalid signup data", details: parsed.error.errors });
       }
-      
+
       const existingUser = await storage.getUserByEmail(parsed.data.email);
       if (existingUser) {
         return res.status(409).json({ error: "Email already registered" });
       }
-      
+
       const user = await storage.createUser({
         email: parsed.data.email,
         password: parsed.data.password,
@@ -32,7 +91,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         avatarUrl: parsed.data.avatarUrl,
         role: parsed.data.role || "rider",
       });
-      
+
       const { password: _, username: __, ...userWithoutPassword } = user;
       res.status(201).json(userWithoutPassword);
     } catch (error) {
@@ -43,12 +102,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/driver-signup", async (req, res) => {
     try {
-      const { 
-        email, password, fullName, phone, avatarUrl,
-        vehicleMake, vehicleModel, vehicleYear, vehicleColor, vehiclePlate, vehicleTier
+      const {
+        email,
+        password,
+        fullName,
+        phone,
+        avatarUrl,
+        vehicleMake,
+        vehicleModel,
+        vehicleYear,
+        vehicleColor,
+        vehiclePlate,
+        vehicleTier,
       } = req.body;
 
-      if (!email || !password || !fullName || !vehicleMake || !vehicleModel || !vehicleColor || !vehiclePlate) {
+      if (
+        !email ||
+        !password ||
+        !fullName ||
+        !vehicleMake ||
+        !vehicleModel ||
+        !vehicleColor ||
+        !vehiclePlate
+      ) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -90,16 +166,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!parsed.success) {
         return res.status(400).json({ error: "Invalid login data" });
       }
-      
+
       const user = await storage.getUserByEmail(parsed.data.email);
       if (!user || user.password !== parsed.data.password) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
-      
+
       const { password: _, username: __, ...userWithoutPassword } = user;
-      
+
       const driverProfile = await storage.getDriverProfile(user.id);
-      
+
       res.json({ user: userWithoutPassword, driverProfile });
     } catch (error) {
       console.error("Login error:", error);
@@ -183,18 +259,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const parsed = insertDriverProfileSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ error: "Invalid driver profile data", details: parsed.error.errors });
+        return res
+          .status(400)
+          .json({
+            error: "Invalid driver profile data",
+            details: parsed.error.errors,
+          });
       }
-      
-      const existingProfile = await storage.getDriverProfile(parsed.data.userId);
+
+      const existingProfile = await storage.getDriverProfile(
+        parsed.data.userId,
+      );
       if (existingProfile) {
         return res.status(409).json({ error: "Driver profile already exists" });
       }
-      
+
       const profile = await storage.createDriverProfile(parsed.data);
-      
+
       await storage.updateUser(parsed.data.userId, { role: "driver" });
-      
+
       res.status(201).json(profile);
     } catch (error) {
       console.error("Create driver profile error:", error);
@@ -204,7 +287,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/drivers/:userId/profile", async (req, res) => {
     try {
-      const profile = await storage.updateDriverProfile(req.params.userId, req.body);
+      const profile = await storage.updateDriverProfile(
+        req.params.userId,
+        req.body,
+      );
       if (!profile) {
         return res.status(404).json({ error: "Driver profile not found" });
       }
@@ -277,11 +363,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const lat = parseFloat(req.query.lat as string);
       const lng = parseFloat(req.query.lng as string);
       const radius = parseFloat(req.query.radius as string) || 10;
-      
+
       if (isNaN(lat) || isNaN(lng)) {
         return res.status(400).json({ error: "Invalid coordinates" });
       }
-      
+
       const drivers = await storage.getNearbyDrivers(lat, lng, radius);
       res.json(drivers);
     } catch (error) {
@@ -312,7 +398,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const driverId = req.query.driverId as string;
       if (!driverId) {
-        return res.status(400).json({ error: "driverId query parameter required" });
+        return res
+          .status(400)
+          .json({ error: "driverId query parameter required" });
       }
       const rides = await storage.getPendingRidesForDriver(driverId);
       res.json(rides);
@@ -337,25 +425,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const parsed = insertRideSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ error: "Invalid ride data", details: parsed.error.errors });
+        return res
+          .status(400)
+          .json({ error: "Invalid ride data", details: parsed.error.errors });
       }
-      
+
       const pickupLat = Number(parsed.data.pickupLatitude);
       const pickupLng = Number(parsed.data.pickupLongitude);
-      
-      const closestDriver = await storage.findClosestAvailableDriver(pickupLat, pickupLng);
-      
+
+      const closestDriver = await storage.findClosestAvailableDriver(
+        pickupLat,
+        pickupLng,
+      );
+
       const rideData = {
         ...parsed.data,
         driverId: closestDriver?.user.id || null,
       };
-      
+
       const ride = await storage.createRide(rideData);
-      
-      res.status(201).json({ 
-        ride, 
+
+      res.status(201).json({
+        ride,
         driverAssigned: !!closestDriver,
-        message: closestDriver ? "Driver found and notified" : "No available drivers nearby. Please try again." 
+        message: closestDriver
+          ? "Driver found and notified"
+          : "No available drivers nearby. Please try again.",
       });
     } catch (error) {
       console.error("Create ride error:", error);
@@ -378,22 +473,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/rides/:id/accept", async (req, res) => {
     try {
       const { driverId } = req.body;
-      
+
       const existingRide = await storage.getRide(req.params.id);
       if (!existingRide) {
         return res.status(404).json({ error: "Ride not found" });
       }
-      
+
       if (existingRide.status !== "pending") {
         return res.status(400).json({ error: "Ride is no longer available" });
       }
-      
+
       const ride = await storage.updateRide(req.params.id, {
         driverId,
         status: "driver_assigned",
         acceptedAt: new Date(),
       });
-      
+
       res.json(ride);
     } catch (error) {
       res.status(500).json({ error: "Failed to accept ride" });
@@ -403,32 +498,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/rides/:id/decline", async (req, res) => {
     try {
       const { driverId } = req.body;
-      
+
       const existingRide = await storage.getRide(req.params.id);
       if (!existingRide) {
         return res.status(404).json({ error: "Ride not found" });
       }
-      
-      if (existingRide.status !== "pending" || existingRide.driverId !== driverId) {
+
+      if (
+        existingRide.status !== "pending" ||
+        existingRide.driverId !== driverId
+      ) {
         return res.status(400).json({ error: "Cannot decline this ride" });
       }
-      
+
       const pickupLat = Number(existingRide.pickupLatitude);
       const pickupLng = Number(existingRide.pickupLongitude);
-      
-      const nextDriver = await storage.findClosestAvailableDriver(pickupLat, pickupLng, [driverId]);
-      
+
+      const nextDriver = await storage.findClosestAvailableDriver(
+        pickupLat,
+        pickupLng,
+        [driverId],
+      );
+
       if (nextDriver) {
         const ride = await storage.updateRide(req.params.id, {
           driverId: nextDriver.user.id,
         });
-        res.json({ ride, reassigned: true, message: "Ride reassigned to another driver" });
+        res.json({
+          ride,
+          reassigned: true,
+          message: "Ride reassigned to another driver",
+        });
       } else {
         await storage.updateRide(req.params.id, {
           status: "cancelled",
           cancelledAt: new Date(),
         });
-        res.json({ reassigned: false, message: "No other drivers available. Ride cancelled." });
+        res.json({
+          reassigned: false,
+          message: "No other drivers available. Ride cancelled.",
+        });
       }
     } catch (error) {
       res.status(500).json({ error: "Failed to decline ride" });
@@ -470,11 +579,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!existingRide) {
         return res.status(404).json({ error: "Ride not found" });
       }
-      
+
       const actualFare = Number(existingRide.estimatedFare);
-      const platformFee = actualFare * 0.20;
+      const platformFee = actualFare * 0.2;
       const driverEarnings = actualFare - platformFee;
-      
+
       const ride = await storage.updateRide(req.params.id, {
         status: "completed",
         completedAt: new Date(),
@@ -482,17 +591,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         platformFee: platformFee.toFixed(2),
         driverEarnings: driverEarnings.toFixed(2),
       });
-      
+
       if (existingRide.driverId) {
-        const driverProfile = await storage.getDriverProfile(existingRide.driverId);
+        const driverProfile = await storage.getDriverProfile(
+          existingRide.driverId,
+        );
         if (driverProfile) {
           await storage.updateDriverProfile(existingRide.driverId, {
             totalTrips: (driverProfile.totalTrips || 0) + 1,
-            totalEarnings: (Number(driverProfile.totalEarnings || 0) + driverEarnings).toFixed(2),
+            totalEarnings: (
+              Number(driverProfile.totalEarnings || 0) + driverEarnings
+            ).toFixed(2),
           });
         }
       }
-      
+
       res.json(ride);
     } catch (error) {
       console.error("Complete ride error:", error);
@@ -550,34 +663,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Fare estimation endpoint
   app.post("/api/estimate-fare", async (req, res) => {
     try {
-      const { pickupLatitude, pickupLongitude, destinationLatitude, destinationLongitude, vehicleTier } = req.body;
-      
+      const {
+        pickupLatitude,
+        pickupLongitude,
+        destinationLatitude,
+        destinationLongitude,
+        vehicleTier,
+      } = req.body;
+
       const distance = Math.sqrt(
         Math.pow((destinationLatitude - pickupLatitude) * 69, 2) +
-        Math.pow((destinationLongitude - pickupLongitude) * 54.6, 2)
+          Math.pow((destinationLongitude - pickupLongitude) * 54.6, 2),
       );
-      
+
       const baseFares: Record<string, number> = {
-        economy: 2.50,
-        comfort: 4.00,
-        premium: 6.00,
-        luxury: 10.00,
+        economy: 2.5,
+        comfort: 4.0,
+        premium: 6.0,
+        luxury: 10.0,
       };
-      
+
       const perMileRates: Record<string, number> = {
-        economy: 1.50,
-        comfort: 2.00,
-        premium: 3.00,
-        luxury: 5.00,
+        economy: 1.5,
+        comfort: 2.0,
+        premium: 3.0,
+        luxury: 5.0,
       };
-      
+
       const tier = vehicleTier || "economy";
       const baseFare = baseFares[tier] || baseFares.economy;
       const perMileRate = perMileRates[tier] || perMileRates.economy;
-      
-      const estimatedFare = baseFare + (distance * perMileRate);
+
+      const estimatedFare = baseFare + distance * perMileRate;
       const estimatedDuration = Math.round(distance * 3);
-      
+
       res.json({
         estimatedFare: Math.round(estimatedFare * 100) / 100,
         estimatedDistance: Math.round(distance * 100) / 100,

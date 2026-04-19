@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Trading Command Center</title>
+    <style>
+      :root {
+        --bg: #070b14;
+        --panel: #111827;
+        --panel-soft: #172033;
+        --text: #e6edf6;
+        --muted: #8ea2c6;
+        --green: #2ed573;
+        --red: #ff6b6b;
+        --blue: #5ea2ff;
+        --border: #24314d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: radial-gradient(circle at top, #0d1730 0%, var(--bg) 42%);
+        color: var(--text);
+        font-family:
+          Inter,
+          Segoe UI,
+          Roboto,
+          sans-serif;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 18px 28px;
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        background: rgba(7, 11, 20, 0.9);
+        backdrop-filter: blur(6px);
+      }
+
+      .badge {
+        background: rgba(94, 162, 255, 0.15);
+        color: #b7d0ff;
+        border: 1px solid rgba(94, 162, 255, 0.35);
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+      }
+
+      main {
+        padding: 20px 28px 28px;
+        display: grid;
+        gap: 16px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .card {
+        background: linear-gradient(180deg, var(--panel), var(--panel-soft));
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px;
+      }
+
+      .kpi-label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .kpi-value {
+        font-size: 26px;
+        font-weight: 700;
+      }
+      .kpi-sub {
+        font-size: 12px;
+        margin-top: 8px;
+        color: var(--muted);
+      }
+
+      .good {
+        color: var(--green);
+      }
+      .bad {
+        color: var(--red);
+      }
+      .neutral {
+        color: var(--blue);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 1.45fr 1fr;
+        gap: 16px;
+      }
+
+      .section-title {
+        margin: 0 0 10px;
+        font-size: 15px;
+        color: #c7d7f5;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 8px 6px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      #navChart {
+        width: 100%;
+        height: 190px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #0c1324;
+      }
+
+      .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      input,
+      button {
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: #0d1527;
+        color: var(--text);
+        padding: 8px 10px;
+      }
+
+      button {
+        cursor: pointer;
+        background: linear-gradient(180deg, #245dbe, #224a90);
+        border: 1px solid #3c6fbe;
+      }
+
+      @media (max-width: 1080px) {
+        .grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h2 style="margin: 0">AI Trading Command Center</h2>
+        <div style="font-size: 12px; color: var(--muted)">
+          PC Dashboard + Backend Brain Telemetry
+        </div>
+      </div>
+      <div class="badge" id="regimeBadge">Regime: loading…</div>
+    </header>
+
+    <main>
+      <section class="grid" id="kpis"></section>
+
+      <section class="layout">
+        <div class="card">
+          <h3 class="section-title">30-Day NAV</h3>
+          <svg
+            id="navChart"
+            viewBox="0 0 800 190"
+            preserveAspectRatio="none"
+          ></svg>
+          <div class="kpi-sub" id="chartMeta"></div>
+        </div>
+
+        <div class="card">
+          <h3 class="section-title">Simulation Comparator</h3>
+          <div class="controls" style="margin-bottom: 8px">
+            <label style="font-size: 12px; color: var(--muted)">Days</label>
+            <input id="simDays" type="number" value="720" min="90" max="3000" />
+            <button id="runSim">Run Simulation</button>
+          </div>
+          <pre
+            id="simOut"
+            style="font-size: 12px; white-space: pre-wrap; color: #c9dbff"
+          ></pre>
+        </div>
+      </section>
+
+      <section class="layout">
+        <div class="card">
+          <h3 class="section-title">Open Positions</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Qty</th>
+                <th>Entry</th>
+                <th>Mark</th>
+                <th>Conf</th>
+                <th>PnL</th>
+              </tr>
+            </thead>
+            <tbody id="positionsBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3 class="section-title">Recent Executions</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Slip (bps)</th>
+                <th>Venue</th>
+              </tr>
+            </thead>
+            <tbody id="execBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const fmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+      const fmtMoney = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 2,
+      });
+
+      function kpiCard(label, value, sub, cls = "neutral") {
+        return `<div class="card"><div class="kpi-label">${label}</div><div class="kpi-value ${cls}">${value}</div><div class="kpi-sub">${sub}</div></div>`;
+      }
+
+      function drawChart(points) {
+        const svg = document.getElementById("navChart");
+        const w = 800,
+          h = 190,
+          pad = 16;
+        const vals = points.map((p) => p.nav);
+        const min = Math.min(...vals),
+          max = Math.max(...vals);
+        const x = (i) =>
+          pad + (i / Math.max(1, points.length - 1)) * (w - 2 * pad);
+        const y = (v) =>
+          h - pad - ((v - min) / Math.max(1e-6, max - min)) * (h - 2 * pad);
+        const path = points
+          .map(
+            (p, i) =>
+              `${i === 0 ? "M" : "L"} ${x(i).toFixed(2)} ${y(p.nav).toFixed(2)}`,
+          )
+          .join(" ");
+
+        svg.innerHTML = `
+          <path d="${path}" fill="none" stroke="#5ea2ff" stroke-width="2.4" />
+          <line x1="${pad}" y1="${h - pad}" x2="${w - pad}" y2="${h - pad}" stroke="#2a3b5c" />
+          <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h - pad}" stroke="#2a3b5c" />
+        `;
+      }
+
+      async function refresh() {
+        const [overviewRes, posRes, execRes] = await Promise.all([
+          fetch("/api/trading/overview"),
+          fetch("/api/trading/positions"),
+          fetch("/api/trading/executions"),
+        ]);
+
+        const overview = await overviewRes.json();
+        const positions = await posRes.json();
+        const executions = await execRes.json();
+
+        document.getElementById("regimeBadge").textContent =
+          `Regime: ${overview.regime} (${Math.round(overview.regimeConfidence * 100)}%)`;
+        document.getElementById("kpis").innerHTML = [
+          kpiCard(
+            "NAV",
+            fmtMoney.format(overview.nav),
+            `Timestamp: ${new Date(overview.timestamp).toLocaleTimeString()}`,
+            "neutral",
+          ),
+          kpiCard(
+            "PnL Today",
+            fmtMoney.format(overview.pnlToday),
+            `${overview.rollingReturnPct}% rolling return`,
+            overview.pnlToday >= 0 ? "good" : "bad",
+          ),
+          kpiCard(
+            "Sharpe (proxy)",
+            fmt.format(overview.sharpeProxy),
+            `Open risk ${overview.openRiskPct}%`,
+            "neutral",
+          ),
+          kpiCard(
+            "Max Drawdown",
+            `${overview.maxDrawdownPct}%`,
+            "Lower is better",
+            overview.maxDrawdownPct < 8 ? "good" : "bad",
+          ),
+        ].join("");
+
+        drawChart(overview.navSeries);
+        document.getElementById("chartMeta").textContent =
+          `Window return ${overview.rollingReturnPct}% | Last PnL ${fmtMoney.format(overview.pnlToday)}`;
+
+        document.getElementById("positionsBody").innerHTML = positions
+          .map(
+            (p) => `
+          <tr>
+            <td>${p.symbol}</td>
+            <td class="${p.side === "long" ? "good" : "bad"}">${p.side}</td>
+            <td>${p.quantity}</td>
+            <td>${p.entry}</td>
+            <td>${p.mark}</td>
+            <td>${Math.round(p.confidence * 100)}%</td>
+            <td class="${p.pnl >= 0 ? "good" : "bad"}">${p.pnl}</td>
+          </tr>
+        `,
+          )
+          .join("");
+
+        document.getElementById("execBody").innerHTML = executions
+          .map(
+            (e) => `
+          <tr>
+            <td>${new Date(e.time).toLocaleTimeString()}</td>
+            <td>${e.symbol}</td>
+            <td>${e.side}</td>
+            <td>${e.qty}</td>
+            <td>${e.price}</td>
+            <td>${e.slippageBps}</td>
+            <td>${e.venue}</td>
+          </tr>
+        `,
+          )
+          .join("");
+      }
+
+      async function runSimulation() {
+        const days = Number(document.getElementById("simDays").value || 720);
+        const res = await fetch("/api/trading/simulate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ days }),
+        });
+        const payload = await res.json();
+        document.getElementById("simOut").textContent = JSON.stringify(
+          payload,
+          null,
+          2,
+        );
+      }
+
+      document
+        .getElementById("runSim")
+        .addEventListener("click", runSimulation);
+      refresh();
+      runSimulation();
+      setInterval(refresh, 8000);
+    </script>
+  </body>
+</html>
